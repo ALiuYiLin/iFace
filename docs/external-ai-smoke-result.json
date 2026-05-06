@@ -1,6 +1,6 @@
 {
-  "generatedAt": "2026-05-06T03:31:25.086Z",
-  "packageVersion": "1.0.0",
+  "generatedAt": "2026-05-06T05:34:33.874Z",
+  "packageVersion": "1.1.0",
   "targets": {
     "ai": true,
     "gist": false
@@ -21,9 +21,9 @@
       "details": {
         "model": "deepseek-v4-flash",
         "baseUrlHost": "api.deepseek.com",
-        "feedbackChars": 284,
-        "streamedChars": 284,
-        "noteChars": 409
+        "feedbackChars": 360,
+        "streamedChars": 360,
+        "noteChars": 485
       }
     }
   ],

@@ -534,6 +534,7 @@ interface AIPanelProps {
   onOpenSettings: () => void
   /** When true, the internal PanelHeader is hidden (the parent drawer provides its own) */
   headless?: boolean
+  initialPrompt?: { id: string; text: string } | null
 }
 
 export function AIPanel({
@@ -541,6 +542,7 @@ export function AIPanel({
   answerVisible,
   onOpenSettings,
   headless = false,
+  initialPrompt = null,
 }: AIPanelProps) {
   const {
     config,
@@ -565,6 +567,7 @@ export function AIPanel({
   const inputRef = useRef<HTMLTextAreaElement>(null)
   // Track whether user has manually scrolled up
   const userScrolledUp = useRef(false)
+  const lastInitialPromptIdRef = useRef<string | null>(null)
   const isStreamingRef = useRef(isStreaming)
   isStreamingRef.current = isStreaming
 
@@ -683,6 +686,15 @@ export function AIPanel({
     },
     [handleSend],
   )
+
+  useEffect(() => {
+    if (!initialPrompt || lastInitialPromptIdRef.current === initialPrompt.id) return
+
+    lastInitialPromptIdRef.current = initialPrompt.id
+    if (!isReady || isStreaming) return
+
+    void handleSend(initialPrompt.text)
+  }, [handleSend, initialPrompt, isReady, isStreaming])
 
   // ── Render: not configured ──
   if (!isReady) {

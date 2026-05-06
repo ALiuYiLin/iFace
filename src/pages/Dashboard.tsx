@@ -671,7 +671,7 @@ function StudyPlanCard({
         : '今天已经完成目标，可以按薄弱模块继续加练。'
 
   return (
-    <div className="card animate-fade-in stagger-1" style={{ padding: 20, marginBottom: 20 }}>
+    <div className="card animate-fade-in stagger-1" style={{ padding: 20 }}>
       <div
         className="study-plan-grid"
         style={{
@@ -923,7 +923,7 @@ function getNotePreview(content: string): string {
 
 function RecentNotesCard({ notes, total }: { notes: RecentNoteItem[]; total: number }) {
   return (
-    <div className="card animate-fade-in stagger-2" style={{ padding: 20, marginBottom: 20 }}>
+    <div className="card animate-fade-in stagger-2" style={{ padding: 20 }}>
       <div
         style={{
           display: 'flex',
@@ -1512,18 +1512,6 @@ export default function Dashboard() {
             />
           </div>
 
-          <StudyPlanCard
-            dailyIds={dailyIds}
-            questions={visibleQuestions}
-            records={records}
-            moduleStats={moduleStats}
-            counts={counts}
-            dailyGoal={dailyGoal}
-            streak={streak}
-          />
-
-          <RecentNotesCard notes={recentNoteItems.slice(0, 4)} total={recentNoteItems.length} />
-
           {/* ── Main Grid ── */}
           <div
             style={{
@@ -1729,6 +1717,29 @@ export default function Dashboard() {
             </div>
           </div>
 
+          <div
+            className="learning-focus-grid"
+            style={{
+              display: 'grid',
+              gridTemplateColumns: 'minmax(0, 1.08fr) minmax(0, 0.92fr)',
+              gap: 14,
+              marginBottom: 20,
+              alignItems: 'stretch',
+            }}
+          >
+            <StudyPlanCard
+              dailyIds={dailyIds}
+              questions={visibleQuestions}
+              records={records}
+              moduleStats={moduleStats}
+              counts={counts}
+              dailyGoal={dailyGoal}
+              streak={streak}
+            />
+
+            <RecentNotesCard notes={recentNoteItems.slice(0, 4)} total={recentNoteItems.length} />
+          </div>
+
           {/* ── Today's Recommendations ── */}
           <div className="card animate-fade-in stagger-4" style={{ padding: 20, marginBottom: 20 }}>
             <div
@@ -1849,6 +1860,9 @@ export default function Dashboard() {
 					.main-grid {
 						grid-template-columns: 1fr !important;
 					}
+					.learning-focus-grid {
+						grid-template-columns: 1fr !important;
+					}
 					.study-plan-grid {
 						grid-template-columns: 1fr !important;
 					}
@@ -1864,6 +1878,9 @@ export default function Dashboard() {
 						grid-template-columns: repeat(2, 1fr) !important;
 					}
 					.main-grid {
+						grid-template-columns: 1fr !important;
+					}
+					.learning-focus-grid {
 						grid-template-columns: 1fr !important;
 					}
 					.daily-grid {

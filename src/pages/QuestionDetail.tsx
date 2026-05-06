@@ -1896,6 +1896,57 @@ function NoteDrawer({
   )
 }
 
+function AnswerAIButton({
+  title,
+  active = false,
+  onClick,
+  children,
+}: {
+  title: string
+  active?: boolean
+  onClick: () => void
+  children: React.ReactNode
+}) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      aria-label={title}
+      title={title}
+      style={{
+        width: 28,
+        height: 28,
+        borderRadius: 8,
+        border: '1px solid',
+        borderColor: active ? 'rgba(var(--primary-rgb),0.3)' : 'transparent',
+        background: active ? 'rgba(var(--primary-rgb),0.08)' : 'transparent',
+        color: active ? 'var(--primary)' : 'var(--text-3)',
+        cursor: 'pointer',
+        display: 'inline-flex',
+        alignItems: 'center',
+        justifyContent: 'center',
+        transition: 'all 0.15s',
+      }}
+      onMouseEnter={(e) => {
+        ;(e.currentTarget as HTMLElement).style.borderColor = 'rgba(var(--primary-rgb),0.28)'
+        ;(e.currentTarget as HTMLElement).style.background = 'rgba(var(--primary-rgb),0.08)'
+        ;(e.currentTarget as HTMLElement).style.color = 'var(--primary)'
+      }}
+      onMouseLeave={(e) => {
+        ;(e.currentTarget as HTMLElement).style.borderColor = active
+          ? 'rgba(var(--primary-rgb),0.3)'
+          : 'transparent'
+        ;(e.currentTarget as HTMLElement).style.background = active
+          ? 'rgba(var(--primary-rgb),0.08)'
+          : 'transparent'
+        ;(e.currentTarget as HTMLElement).style.color = active ? 'var(--primary)' : 'var(--text-3)'
+      }}
+    >
+      {children}
+    </button>
+  )
+}
+
 // ─── AI Drawer ────────────────────────────────────────────────────────────────
 // Fixed right drawer — never affects main content width
 
@@ -1905,9 +1956,17 @@ interface AIDrawerProps {
   question: NonNullable<ReturnType<typeof useQuestion>['question']>
   answerVisible: boolean
   onOpenSettings: () => void
+  initialPrompt?: { id: string; text: string } | null
 }
 
-function AIDrawer({ open, onClose, question, answerVisible, onOpenSettings }: AIDrawerProps) {
+function AIDrawer({
+  open,
+  onClose,
+  question,
+  answerVisible,
+  onOpenSettings,
+  initialPrompt = null,
+}: AIDrawerProps) {
   const { config, getMessages, clearSession } = useAIStore()
   const messages = getMessages(question.id)
 
@@ -2156,6 +2215,7 @@ function AIDrawer({ open, onClose, question, answerVisible, onOpenSettings }: AI
             answerVisible={answerVisible}
             onOpenSettings={onOpenSettings}
             headless
+            initialPrompt={initialPrompt}
           />
         </div>
       </div>
@@ -2181,6 +2241,7 @@ export default function QuestionDetail() {
   const [justMarked, setJustMarked] = useState<StudyStatus | null>(null)
   const [lastPressedKey, setLastPressedKey] = useState<'1' | '2' | '3' | null>(null)
   const [aiDrawerOpen, setAiDrawerOpen] = useState(false)
+  const [aiInitialPrompt, setAiInitialPrompt] = useState<{ id: string; text: string } | null>(null)
   const [noteDrawerOpen, setNoteDrawerOpen] = useState(false)
   const [hasNote, setHasNote] = useState(false)
   const [starred, setStarred] = useState(false)
@@ -2199,6 +2260,24 @@ export default function QuestionDetail() {
   )
   const [storedSessionIds, setStoredSessionIds] = useState<string[]>(() =>
     readPracticeSession(sessionKey),
+  )
+
+  const openAIWithPreset = useCallback(
+    (preset: 'question' | 'concept') => {
+      if (!question) return
+
+      const text =
+        preset === 'question'
+          ? '请围绕这道题做一次面试题讲解：先拆解题目在问什么，再指出考察点，最后给出适合口述的答题思路。'
+          : '请讲解这道题背后的核心知识点：按知识框架、关键机制、常见误区和面试延展来组织。'
+
+      setAiInitialPrompt({
+        id: `${preset}-${question.id}-${Date.now()}`,
+        text,
+      })
+      setAiDrawerOpen(true)
+    },
+    [question],
   )
 
   useEffect(() => {
@@ -2773,39 +2852,42 @@ export default function QuestionDetail() {
                   display: 'inline-flex',
                   alignItems: 'center',
                   justifyContent: 'center',
-                  gap: 5,
-                  minHeight: 26,
-                  padding: '4px 9px',
+                  width: 28,
+                  height: 28,
+                  padding: 0,
                   borderRadius: 8,
                   border: '1px solid',
-                  borderColor: starred ? 'rgba(245,158,11,0.35)' : 'var(--border-subtle)',
-                  background: starred ? 'rgba(245,158,11,0.1)' : 'var(--surface-2)',
-                  color: starred ? '#b45309' : 'var(--text-2)',
+                  borderColor: starred ? 'rgba(245,158,11,0.28)' : 'transparent',
+                  background: starred ? 'rgba(245,158,11,0.08)' : 'transparent',
+                  color: starred ? '#b45309' : 'var(--text-3)',
                   fontSize: 12,
                   fontWeight: 500,
                   cursor: 'pointer',
+                  opacity: starred ? 1 : 0.7,
                   transition: 'all 0.15s',
                 }}
                 onMouseEnter={(e) => {
-                  ;(e.currentTarget as HTMLElement).style.borderColor = 'rgba(245,158,11,0.45)'
-                  ;(e.currentTarget as HTMLElement).style.background = 'rgba(245,158,11,0.12)'
+                  ;(e.currentTarget as HTMLElement).style.borderColor = 'rgba(245,158,11,0.32)'
+                  ;(e.currentTarget as HTMLElement).style.background = 'rgba(245,158,11,0.1)'
                   ;(e.currentTarget as HTMLElement).style.color = '#b45309'
+                  ;(e.currentTarget as HTMLElement).style.opacity = '1'
                 }}
                 onMouseLeave={(e) => {
                   ;(e.currentTarget as HTMLElement).style.borderColor = starred
-                    ? 'rgba(245,158,11,0.35)'
-                    : 'var(--border-subtle)'
+                    ? 'rgba(245,158,11,0.28)'
+                    : 'transparent'
                   ;(e.currentTarget as HTMLElement).style.background = starred
-                    ? 'rgba(245,158,11,0.1)'
-                    : 'var(--surface-2)'
+                    ? 'rgba(245,158,11,0.08)'
+                    : 'transparent'
                   ;(e.currentTarget as HTMLElement).style.color = starred
                     ? '#b45309'
-                    : 'var(--text-2)'
+                    : 'var(--text-3)'
+                  ;(e.currentTarget as HTMLElement).style.opacity = starred ? '1' : '0.7'
                 }}
               >
                 <svg
-                  width="13"
-                  height="13"
+                  width="14"
+                  height="14"
                   viewBox="0 0 24 24"
                   fill={starred ? 'currentColor' : 'none'}
                   stroke="currentColor"
@@ -2815,7 +2897,6 @@ export default function QuestionDetail() {
                 >
                   <polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2" />
                 </svg>
-                {starred ? '重点题' : '重点'}
               </button>
               <button
                 type="button"
@@ -2826,35 +2907,39 @@ export default function QuestionDetail() {
                   display: 'inline-flex',
                   alignItems: 'center',
                   justifyContent: 'center',
-                  gap: 5,
-                  minHeight: 26,
-                  padding: '4px 9px',
+                  width: 28,
+                  height: 28,
+                  padding: 0,
                   borderRadius: 8,
                   border: '1px solid',
-                  borderColor: hasNote ? 'rgba(var(--primary-rgb),0.28)' : 'var(--border-subtle)',
-                  background: hasNote ? 'var(--primary-light)' : 'var(--surface-2)',
-                  color: hasNote ? 'var(--primary)' : 'var(--text-2)',
+                  borderColor: hasNote ? 'rgba(var(--primary-rgb),0.22)' : 'transparent',
+                  background: hasNote ? 'rgba(var(--primary-rgb),0.07)' : 'transparent',
+                  color: hasNote ? 'var(--primary)' : 'var(--text-3)',
                   fontSize: 12,
                   fontWeight: 500,
                   cursor: 'pointer',
+                  opacity: hasNote ? 1 : 0.7,
                   transition: 'all 0.15s',
                 }}
                 onMouseEnter={(e) => {
                   ;(e.currentTarget as HTMLElement).style.borderColor =
-                    'rgba(var(--primary-rgb),0.36)'
-                  ;(e.currentTarget as HTMLElement).style.background = 'var(--primary-light)'
+                    'rgba(var(--primary-rgb),0.28)'
+                  ;(e.currentTarget as HTMLElement).style.background =
+                    'rgba(var(--primary-rgb),0.08)'
                   ;(e.currentTarget as HTMLElement).style.color = 'var(--primary)'
+                  ;(e.currentTarget as HTMLElement).style.opacity = '1'
                 }}
                 onMouseLeave={(e) => {
                   ;(e.currentTarget as HTMLElement).style.borderColor = hasNote
-                    ? 'rgba(var(--primary-rgb),0.28)'
-                    : 'var(--border-subtle)'
+                    ? 'rgba(var(--primary-rgb),0.22)'
+                    : 'transparent'
                   ;(e.currentTarget as HTMLElement).style.background = hasNote
-                    ? 'var(--primary-light)'
-                    : 'var(--surface-2)'
+                    ? 'rgba(var(--primary-rgb),0.07)'
+                    : 'transparent'
                   ;(e.currentTarget as HTMLElement).style.color = hasNote
                     ? 'var(--primary)'
-                    : 'var(--text-2)'
+                    : 'var(--text-3)'
+                  ;(e.currentTarget as HTMLElement).style.opacity = hasNote ? '1' : '0.7'
                 }}
               >
                 <span style={{ position: 'relative', display: 'inline-flex' }}>
@@ -2887,8 +2972,6 @@ export default function QuestionDetail() {
                     />
                   )}
                 </span>
-                {hasNote ? '有笔记' : '笔记'}
-                <Kbd>N</Kbd>
               </button>
             </div>
           </div>
@@ -3025,60 +3108,66 @@ export default function QuestionDetail() {
                 <h2 style={{ fontSize: 13, fontWeight: 600, color: 'var(--text)' }}>参考答案</h2>
               </div>
 
-              {/* AI assistant entry — subtle, inside the answer card */}
-              <button
-                type="button"
-                onClick={() => setAiDrawerOpen(true)}
-                title="打开 AI 助手"
-                style={{
-                  display: 'flex',
-                  alignItems: 'center',
-                  gap: 5,
-                  padding: '4px 10px',
-                  borderRadius: 7,
-                  border: '1px solid',
-                  borderColor: aiDrawerOpen
-                    ? 'rgba(var(--primary-rgb),0.4)'
-                    : 'var(--border-subtle)',
-                  background: aiDrawerOpen ? 'var(--primary-light)' : 'transparent',
-                  color: aiDrawerOpen ? 'var(--primary)' : 'var(--text-3)',
-                  fontSize: 12,
-                  fontWeight: 500,
-                  cursor: 'pointer',
-                  transition: 'all 0.15s',
-                }}
-                onMouseEnter={(e) => {
-                  if (!aiDrawerOpen) {
-                    ;(e.currentTarget as HTMLElement).style.borderColor =
-                      'rgba(var(--primary-rgb),0.35)'
-                    ;(e.currentTarget as HTMLElement).style.color = 'var(--primary)'
-                    ;(e.currentTarget as HTMLElement).style.background = 'var(--primary-light)'
-                  }
-                }}
-                onMouseLeave={(e) => {
-                  if (!aiDrawerOpen) {
-                    ;(e.currentTarget as HTMLElement).style.borderColor = 'var(--border-subtle)'
-                    ;(e.currentTarget as HTMLElement).style.color = 'var(--text-3)'
-                    ;(e.currentTarget as HTMLElement).style.background = 'transparent'
-                  }
-                }}
-              >
-                <svg
-                  width="12"
-                  height="12"
-                  viewBox="0 0 24 24"
-                  fill="none"
-                  stroke="currentColor"
-                  strokeWidth="2"
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
+              <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
+                <AnswerAIButton
+                  title={isAiEnabled ? '打开 AI 助手' : 'AI 助手（请先配置）'}
+                  active={aiDrawerOpen}
+                  onClick={() => setAiDrawerOpen(true)}
                 >
-                  <path d="M12 2a2 2 0 0 1 2 2c0 .74-.4 1.39-1 1.73V7h1a7 7 0 0 1 7 7h1a1 1 0 0 1 1 1v3a1 1 0 0 1-1 1h-1v1a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-1H2a1 1 0 0 1-1-1v-3a1 1 0 0 1 1-1h1a7 7 0 0 1 7-7h1V5.73c-.6-.34-1-.99-1-1.73a2 2 0 0 1 2-2z" />
-                  <circle cx="7.5" cy="14.5" r="1.5" />
-                  <circle cx="16.5" cy="14.5" r="1.5" />
-                </svg>
-                {isAiEnabled ? 'AI 助手' : 'AI（未配置）'}
-              </button>
+                  <svg
+                    width="13"
+                    height="13"
+                    viewBox="0 0 24 24"
+                    fill="none"
+                    stroke="currentColor"
+                    strokeWidth="2"
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                  >
+                    <path d="M12 2a2 2 0 0 1 2 2c0 .74-.4 1.39-1 1.73V7h1a7 7 0 0 1 7 7h1a1 1 0 0 1 1 1v3a1 1 0 0 1-1 1h-1v1a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-1H2a1 1 0 0 1-1-1v-3a1 1 0 0 1 1-1h1a7 7 0 0 1 7-7h1V5.73c-.6-.34-1-.99-1-1.73a2 2 0 0 1 2-2z" />
+                    <circle cx="7.5" cy="14.5" r="1.5" />
+                    <circle cx="16.5" cy="14.5" r="1.5" />
+                  </svg>
+                </AnswerAIButton>
+                <AnswerAIButton
+                  title={isAiEnabled ? '讲解题目' : '讲解题目（请先配置 AI）'}
+                  onClick={() => openAIWithPreset('question')}
+                >
+                  <svg
+                    width="13"
+                    height="13"
+                    viewBox="0 0 24 24"
+                    fill="none"
+                    stroke="currentColor"
+                    strokeWidth="2.2"
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                  >
+                    <circle cx="12" cy="12" r="10" />
+                    <path d="M9.1 9a3 3 0 1 1 4.9 2.3c-.9.6-1.4 1.2-1.4 2.4" />
+                    <line x1="12" y1="17" x2="12.01" y2="17" />
+                  </svg>
+                </AnswerAIButton>
+                <AnswerAIButton
+                  title={isAiEnabled ? '讲解知识点' : '讲解知识点（请先配置 AI）'}
+                  onClick={() => openAIWithPreset('concept')}
+                >
+                  <svg
+                    width="13"
+                    height="13"
+                    viewBox="0 0 24 24"
+                    fill="none"
+                    stroke="currentColor"
+                    strokeWidth="2.1"
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                  >
+                    <path d="M4 19.5V5a2 2 0 0 1 2-2h12v18H6a2 2 0 0 1-2-1.5z" />
+                    <path d="M8 7h6" />
+                    <path d="M8 11h8" />
+                  </svg>
+                </AnswerAIButton>
+              </div>
             </div>
 
             {/* Markdown answer */}
@@ -3349,6 +3438,7 @@ export default function QuestionDetail() {
         onClose={() => setAiDrawerOpen(false)}
         question={question}
         answerVisible={answerVisible}
+        initialPrompt={aiInitialPrompt}
         onOpenSettings={() => {
           setAiDrawerOpen(false)
           setSettingsOpen(true)

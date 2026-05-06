@@ -5,6 +5,7 @@ interface SpeechInputButtonProps {
   listening: boolean
   disabled?: boolean
   onToggle: () => void
+  showLabel?: boolean
   style?: CSSProperties
 }
 
@@ -13,6 +14,7 @@ export function SpeechInputButton({
   listening,
   disabled = false,
   onToggle,
+  showLabel = false,
   style,
 }: SpeechInputButtonProps) {
   const unavailable = disabled || !supported
@@ -35,13 +37,15 @@ export function SpeechInputButton({
         display: 'inline-flex',
         alignItems: 'center',
         justifyContent: 'center',
-        gap: 5,
-        minHeight: 24,
-        padding: '3px 8px',
+        gap: showLabel ? 5 : 0,
+        width: showLabel ? 'auto' : 26,
+        height: 26,
+        minHeight: 26,
+        padding: showLabel ? '3px 8px' : 0,
         borderRadius: 7,
         border: '1px solid',
-        borderColor: listening ? 'rgba(var(--primary-rgb), 0.34)' : 'var(--border-subtle)',
-        background: listening ? 'var(--primary-light)' : 'var(--surface)',
+        borderColor: listening ? 'rgba(var(--primary-rgb), 0.3)' : 'transparent',
+        background: listening ? 'var(--primary-light)' : 'transparent',
         color: listening ? 'var(--primary)' : 'var(--text-3)',
         fontSize: 11,
         fontWeight: 500,
@@ -54,13 +58,13 @@ export function SpeechInputButton({
       onMouseEnter={(e) => {
         if (unavailable || listening) return
         e.currentTarget.style.background = 'var(--surface-2)'
-        e.currentTarget.style.borderColor = 'rgba(var(--primary-rgb), 0.25)'
+        e.currentTarget.style.borderColor = 'var(--border-subtle)'
         e.currentTarget.style.color = 'var(--primary)'
       }}
       onMouseLeave={(e) => {
         if (unavailable || listening) return
-        e.currentTarget.style.background = 'var(--surface)'
-        e.currentTarget.style.borderColor = 'var(--border-subtle)'
+        e.currentTarget.style.background = 'transparent'
+        e.currentTarget.style.borderColor = 'transparent'
         e.currentTarget.style.color = 'var(--text-3)'
       }}
     >
@@ -94,7 +98,7 @@ export function SpeechInputButton({
           />
         )}
       </span>
-      {label}
+      {showLabel && label}
     </button>
   )
 }
