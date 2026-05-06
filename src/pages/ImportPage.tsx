@@ -3,13 +3,23 @@ import { useNavigate } from 'react-router-dom'
 import { Button, Spinner } from '@/components/ui'
 import { invalidateQuestionsCache } from '@/hooks/useQuestions'
 import {
+  deleteQuestionsBySource,
   getActiveModules,
+  getAllQuestions,
   getCategoryMap,
   getCustomSources,
   removeCustomSource,
   unregisterModuleFromCategories,
 } from '@/lib/db'
-import { importCustomQuestions, isJSONFile, isMDFile, parseJSONSafe } from '@/lib/questionLoader'
+import {
+  BUILTIN_MODULE_FILES,
+  BUILTIN_QUESTIONS_VERSION,
+  importCustomQuestions,
+  isJSONFile,
+  isMDFile,
+  loadAllBuiltinModulesParallel,
+  parseJSONSafe,
+} from '@/lib/questionLoader'
 import { mdToQuestions } from '@/pages/PromptPage'
 
 // ─── Result Toast ─────────────────────────────────────────────────────────────
@@ -184,6 +194,135 @@ function ResultToast({ result, onDismiss }: { result: ImportResult; onDismiss: (
           </div>
         </div>
       )}
+    </div>
+  )
+}
+
+// ─── Built-in Library Card ───────────────────────────────────────────────────
+
+function BuiltinLibraryCard() {
+  const [builtinCount, setBuiltinCount] = useState<number | null>(null)
+  const [loading, setLoading] = useState(false)
+  const [message, setMessage] = useState<{ type: 'success' | 'error'; text: string } | null>(null)
+
+  const refreshStats = useCallback(async () => {
+    const questions = await getAllQuestions()
+    setBuiltinCount(questions.filter((question) => !question.id.startsWith('custom_')).length)
+  }, [])
+
+  useEffect(() => {
+    refreshStats()
+  }, [refreshStats])
+
+  const handleLoadBuiltin = useCallback(async () => {
+    setLoading(true)
+    setMessage(null)
+    const force = Boolean(builtinCount && builtinCount > 0)
+
+    try {
+      const results = await loadAllBuiltinModulesParallel(force)
+      const loaded = results.reduce((sum, result) => sum + result.loaded, 0)
+      const failed = results.filter((result) =>
+        result.errors.some((error) => error.index === -1 && result.loaded === 0),
+      )
+      invalidateQuestionsCache()
+      await refreshStats()
+
+      if (failed.length > 0) {
+        setMessage({
+          type: 'error',
+          text: `有 ${failed.length} 个内置题库文件加载失败，请检查网络或刷新重试。`,
+        })
+      } else {
+        setMessage({
+          type: 'success',
+          text: force
+            ? `已重刷内置题库，写入 ${loaded.toLocaleString()} 道题。`
+            : `已加载内置题库，写入 ${loaded.toLocaleString()} 道题。`,
+        })
+      }
+    } catch (err) {
+      setMessage({
+        type: 'error',
+        text: `内置题库加载失败：${err instanceof Error ? err.message : String(err)}`,
+      })
+    } finally {
+      setLoading(false)
+    }
+  }, [builtinCount, refreshStats])
+
+  return (
+    <div
+      className="card builtin-library-card animate-fade-in stagger-1"
+      style={{
+        padding: 18,
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'space-between',
+        gap: 16,
+      }}
+    >
+      <div style={{ display: 'flex', alignItems: 'flex-start', gap: 12, minWidth: 0 }}>
+        <span
+          style={{
+            width: 34,
+            height: 34,
+            borderRadius: 10,
+            background: 'var(--primary-light)',
+            color: 'var(--primary)',
+            display: 'inline-flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            flexShrink: 0,
+          }}
+        >
+          <svg
+            width="16"
+            height="16"
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+            strokeWidth="2"
+            strokeLinecap="round"
+            strokeLinejoin="round"
+          >
+            <path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20" />
+            <path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z" />
+          </svg>
+        </span>
+        <div style={{ minWidth: 0 }}>
+          <p style={{ fontSize: 14, fontWeight: 600, color: 'var(--text)' }}>内置题库</p>
+          <p style={{ fontSize: 12, color: 'var(--text-3)', lineHeight: 1.6, marginTop: 3 }}>
+            {builtinCount === null
+              ? '正在读取本地题库状态…'
+              : `本地已有 ${builtinCount.toLocaleString()} 道内置题，覆盖 ${BUILTIN_MODULE_FILES.length} 个题库文件。`}
+          </p>
+          <p style={{ fontSize: 11, color: 'var(--text-3)', marginTop: 4 }}>
+            题库版本：{BUILTIN_QUESTIONS_VERSION}
+          </p>
+          {message && (
+            <p
+              style={{
+                fontSize: 12,
+                color: message.type === 'error' ? 'var(--danger)' : 'var(--success)',
+                marginTop: 8,
+                lineHeight: 1.5,
+              }}
+            >
+              {message.text}
+            </p>
+          )}
+        </div>
+      </div>
+      <Button
+        variant={builtinCount && builtinCount > 0 ? 'secondary' : 'primary'}
+        size="sm"
+        loading={loading}
+        onClick={handleLoadBuiltin}
+        style={{ flexShrink: 0 }}
+      >
+        {builtinCount && builtinCount > 0 ? '重刷内置题库' : '加载内置题库'}
+      </Button>
     </div>
   )
 }
@@ -1083,9 +1222,7 @@ export default function ImportPage() {
   // ── Remove source ──
   const handleRemoveSource = useCallback(async (source: string) => {
     if (!confirm(`确定要删除来源「${source}」的所有题目吗？此操作不可撤销。`)) return
-    const { deleteQuestionsBySource } = await import('@/lib/db')
     // Before deleting, find which modules belong to this source
-    const { getAllQuestions } = await import('@/lib/db')
     const all = await getAllQuestions()
     const affectedModules = [
       ...new Set(
@@ -1135,6 +1272,8 @@ export default function ImportPage() {
           支持拖拽 JSON 文件或粘贴 JSON 内容，让 AI 按格式生成后直接导入
         </p>
       </div>
+
+      <BuiltinLibraryCard />
 
       {/* ── Import Card ── */}
       <div
@@ -1337,6 +1476,10 @@ export default function ImportPage() {
 				@media (max-width: 600px) {
 					.paste-fields-grid {
 						grid-template-columns: 1fr !important;
+					}
+					.builtin-library-card {
+						flex-direction: column !important;
+						align-items: stretch !important;
 					}
 				}
 			`}</style>

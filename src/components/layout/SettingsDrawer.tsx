@@ -1,24 +1,43 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { invalidateQuestionsCache } from '@/hooks/useQuestions'
 import {
+  bulkPutQuestionFlags,
+  bulkPutQuestionNotes,
   bulkPutQuestions,
   bulkPutStudyRecords,
   type CategoryMap,
   DEFAULT_CATEGORY_MAP,
   exportAllData,
+  getAllQuestionFlags,
+  getAllQuestionNotes,
   getAllQuestions,
   getAllStudyRecords,
   getCategoryMap,
+  getCustomSources,
+  META_KEYS,
   resetDatabase,
+  saveCategoryMap,
+  setMeta,
 } from '@/lib/db'
+import type { SyncResult } from '@/lib/gistSync'
 import { deleteBackupGist, pullFromGist, pushToGist } from '@/lib/gistSync'
+import {
+  countMergedAISessions,
+  type ImportImpactItem,
+  type ImportPreview,
+  mergeCategoryMaps,
+  parseImportPreview,
+} from '@/lib/localBackup'
 import { BUILTIN_CATEGORIES } from '@/lib/questionLoader'
 import {
+  AI_PROVIDER_PRESETS,
   type AIConfig,
+  type AIProviderId,
+  type AISession,
+  buildChatCompletionsUrl,
   DEFAULT_AI_CONFIG,
   DEFAULT_SYSTEM_PROMPT,
-  PRESET_BASE_URLS,
-  PRESET_MODELS,
+  getAIProviderPreset,
   useAIStore,
 } from '@/store/useAIStore'
 import { useAuthStore } from '@/store/useAuthStore'
@@ -419,8 +438,110 @@ interface SettingsDrawerProps {
 
 type Tab = 'ai' | 'study' | 'data' | 'sync'
 
+function countImportImpact<T>(
+  incoming: T[],
+  existingIds: Set<string>,
+  getId: (item: T) => string,
+): ImportImpactItem {
+  return incoming.reduce<ImportImpactItem>(
+    (acc, item) => {
+      if (existingIds.has(getId(item))) {
+        acc.overwritten++
+      } else {
+        acc.created++
+      }
+      return acc
+    },
+    { created: 0, overwritten: 0 },
+  )
+}
+
+async function withImportImpact(
+  preview: ImportPreview,
+  existingAISessions: Record<string, AISession>,
+): Promise<ImportPreview> {
+  const [questions, records, notes, flags] = await Promise.all([
+    getAllQuestions(),
+    getAllStudyRecords(),
+    getAllQuestionNotes(),
+    getAllQuestionFlags(),
+  ])
+
+  return {
+    ...preview,
+    impact: {
+      questions: countImportImpact(
+        preview.questions,
+        new Set(questions.map((question) => question.id)),
+        (question) => question.id,
+      ),
+      studyRecords: countImportImpact(
+        preview.studyRecords,
+        new Set(records.map((record) => record.questionId)),
+        (record) => record.questionId,
+      ),
+      questionNotes: countImportImpact(
+        preview.questionNotes,
+        new Set(notes.map((note) => note.questionId)),
+        (note) => note.questionId,
+      ),
+      questionFlags: countImportImpact(
+        preview.questionFlags,
+        new Set(flags.map((flag) => flag.questionId)),
+        (flag) => flag.questionId,
+      ),
+      aiSessions: countImportImpact(
+        preview.aiSessions,
+        new Set(Object.keys(existingAISessions)),
+        (session) => session.questionId,
+      ),
+    },
+  }
+}
+
+function formatBackupTime(value?: string): string {
+  if (!value) return '未知'
+  const date = new Date(value)
+  if (Number.isNaN(date.getTime())) return '未知'
+
+  return date.toLocaleString('zh-CN', {
+    month: '2-digit',
+    day: '2-digit',
+    hour: '2-digit',
+    minute: '2-digit',
+    hour12: false,
+  })
+}
+
+function formatRemoteMergeSummary(result: SyncResult): string {
+  const parts = [
+    result.mergedRemoteRecordCount
+      ? `${result.mergedRemoteRecordCount.toLocaleString()} 条学习记录`
+      : null,
+    result.mergedRemoteNoteCount ? `${result.mergedRemoteNoteCount.toLocaleString()} 条笔记` : null,
+    result.mergedRemoteQuestionFlagCount
+      ? `${result.mergedRemoteQuestionFlagCount.toLocaleString()} 个重点标记`
+      : null,
+    result.mergedRemoteAISessionCount
+      ? `${result.mergedRemoteAISessionCount.toLocaleString()} 个 AI 会话`
+      : null,
+    result.mergedRemoteQuestionCount
+      ? `${result.mergedRemoteQuestionCount.toLocaleString()} 道自定义题`
+      : null,
+    result.mergedRemoteSourceCount
+      ? `${result.mergedRemoteSourceCount.toLocaleString()} 个来源`
+      : null,
+    result.mergedRemoteCategoryCount
+      ? `${result.mergedRemoteCategoryCount.toLocaleString()} 个分类`
+      : null,
+  ].filter(Boolean)
+
+  return parts.length > 0 ? `，并保留云端较新的 ${parts.join('、')}` : ''
+}
+
 export function SettingsDrawer({ open, onClose }: SettingsDrawerProps) {
-  const { config, updateConfig, resetConfig, clearAllSessions } = useAIStore()
+  const { config, sessions, updateConfig, resetConfig, clearAllSessions, upsertSessions } =
+    useAIStore()
   const {
     resetAll,
     studyMode,
@@ -445,8 +566,15 @@ export function SettingsDrawer({ open, onClose }: SettingsDrawerProps) {
     type: 'success' | 'error' | 'info'
   } | null>(null)
   const [confirmReset, setConfirmReset] = useState<'records' | 'all' | null>(null)
-  const [dataStats, setDataStats] = useState<{ questions: number; records: number } | null>(null)
+  const [dataStats, setDataStats] = useState<{
+    questions: number
+    records: number
+    notes: number
+    starred: number
+    aiSessions: number
+  } | null>(null)
   const [importing, setImporting] = useState(false)
+  const [importPreview, setImportPreview] = useState<ImportPreview | null>(null)
   const [exporting, setExporting] = useState(false)
   const [testing, setTesting] = useState(false)
   const [testResult, setTestResult] = useState<{ ok: boolean; message: string } | null>(null)
@@ -483,11 +611,22 @@ export function SettingsDrawer({ open, onClose }: SettingsDrawerProps) {
   // Load data stats when data tab is open
   useEffect(() => {
     if (open && tab === 'data') {
-      Promise.all([getAllQuestions(), getAllStudyRecords()]).then(([questions, records]) => {
-        setDataStats({ questions: questions.length, records: records.length })
+      Promise.all([
+        getAllQuestions(),
+        getAllStudyRecords(),
+        getAllQuestionNotes(),
+        getAllQuestionFlags(),
+      ]).then(([questions, records, notes, flags]) => {
+        setDataStats({
+          questions: questions.length,
+          records: records.length,
+          notes: notes.length,
+          starred: flags.filter((flag) => flag.starred).length,
+          aiSessions: Object.keys(sessions).length,
+        })
       })
     }
-  }, [open, tab])
+  }, [open, sessions, tab])
 
   // Auto-pull from Gist once per session after login.
   // We set autoSynced AFTER the call resolves so a transient failure doesn't
@@ -498,13 +637,16 @@ export function SettingsDrawer({ open, onClose }: SettingsDrawerProps) {
     ;(async () => {
       setAutoSynced(true) // prevent concurrent calls, but errors still show
       try {
-        const result = await pullFromGist(token)
+        const result = await pullFromGist(token, Object.values(sessions))
         if (result === null) return // no backup exists yet — silent is fine
         if (result.ok) {
           invalidateQuestionsCache()
+          if (result.aiSessions?.length) {
+            upsertSessions(result.aiSessions)
+          }
           setLastSyncResult({
             ok: true,
-            message: `已自动从云端恢复 ${result.recordCount ?? 0} 条学习记录、${result.questionCount ?? 0} 道自定义题目`,
+            message: `已自动同步 ${result.recordCount ?? 0} 条学习记录、${result.questionCount ?? 0} 道自定义题目、${result.noteCount ?? 0} 条笔记、${result.questionFlagCount ?? 0} 个重点题、${result.aiSessionCount ?? 0} 个 AI 会话${formatRemoteMergeSummary(result)}`,
             at: result.exportedAt,
           })
         } else {
@@ -521,7 +663,7 @@ export function SettingsDrawer({ open, onClose }: SettingsDrawerProps) {
         })
       }
     })()
-  }, [isLoggedIn, token, autoSynced])
+  }, [isLoggedIn, token, autoSynced, sessions, upsertSessions])
 
   // Keyboard close
   useEffect(() => {
@@ -555,39 +697,53 @@ export function SettingsDrawer({ open, onClose }: SettingsDrawerProps) {
     setSaved(false)
   }, [])
 
-  const handleSave = useCallback(() => {
-    // If using custom model
-    const finalModel = localConfig.model === 'custom' ? customModel.trim() : localConfig.model
-    const finalBaseUrl =
-      localConfig.baseUrl === 'custom' ? customBaseUrl.trim() : localConfig.baseUrl
+  const resolveLocalAIConfig = useCallback(() => {
+    const providerId: AIProviderId = localConfig.provider ?? 'custom'
+    const provider = getAIProviderPreset(providerId)
+    const isKnownModel = provider.models.some((model) => model.value === localConfig.model)
+    const finalModel = isKnownModel ? localConfig.model : customModel.trim()
+    const finalBaseUrl = providerId === 'custom' ? customBaseUrl.trim() : localConfig.baseUrl.trim()
 
-    if (!finalModel) {
+    return {
+      ...localConfig,
+      provider: providerId,
+      model: finalModel,
+      baseUrl: finalBaseUrl,
+    }
+  }, [customBaseUrl, customModel, localConfig])
+
+  const handleSave = useCallback(() => {
+    const finalConfig = resolveLocalAIConfig()
+
+    if (!finalConfig.model) {
       showToast('请填写模型名称', 'error')
       return
     }
-    if (!finalBaseUrl) {
+    if (!finalConfig.baseUrl) {
       showToast('请填写 Base URL', 'error')
       return
     }
 
-    updateConfig({ ...localConfig, model: finalModel, baseUrl: finalBaseUrl })
+    updateConfig(finalConfig)
     setIsDirty(false)
     setSaved(true)
     showToast('设置已保存 ✓')
     setTimeout(() => setSaved(false), 2000)
-  }, [localConfig, customModel, customBaseUrl, updateConfig, showToast])
+  }, [resolveLocalAIConfig, updateConfig, showToast])
 
   const handleReset = useCallback(() => {
     setLocalConfig({ ...DEFAULT_AI_CONFIG })
+    setCustomModel('')
+    setCustomBaseUrl('')
     resetConfig()
     setIsDirty(false)
     showToast('已恢复默认设置')
   }, [resetConfig, showToast])
 
   const handleTest = useCallback(async () => {
-    const finalModel = localConfig.model === 'custom' ? customModel.trim() : localConfig.model
-    const finalBaseUrl =
-      localConfig.baseUrl === 'custom' ? customBaseUrl.trim() : localConfig.baseUrl
+    const finalConfig = resolveLocalAIConfig()
+    const finalModel = finalConfig.model
+    const finalBaseUrl = finalConfig.baseUrl
     const apiKey = localConfig.apiKey.trim()
 
     if (!apiKey) {
@@ -607,7 +763,7 @@ export function SettingsDrawer({ open, onClose }: SettingsDrawerProps) {
     setTestResult(null)
 
     try {
-      const response = await fetch(`${finalBaseUrl}/chat/completions`, {
+      const response = await fetch(buildChatCompletionsUrl(finalBaseUrl), {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -640,7 +796,7 @@ export function SettingsDrawer({ open, onClose }: SettingsDrawerProps) {
     } finally {
       setTesting(false)
     }
-  }, [localConfig, customModel, customBaseUrl])
+  }, [localConfig.apiKey, resolveLocalAIConfig])
 
   // ─── Data Actions ──────────────────────────────────────────────────────────
 
@@ -648,7 +804,9 @@ export function SettingsDrawer({ open, onClose }: SettingsDrawerProps) {
     setExporting(true)
     try {
       const data = await exportAllData()
-      const blob = new Blob([JSON.stringify(data, null, 2)], {
+      const aiSessions = Object.values(sessions)
+      const backup = { ...data, aiSessions }
+      const blob = new Blob([JSON.stringify(backup, null, 2)], {
         type: 'application/json',
       })
       const url = URL.createObjectURL(blob)
@@ -659,41 +817,25 @@ export function SettingsDrawer({ open, onClose }: SettingsDrawerProps) {
       a.click()
       document.body.removeChild(a)
       URL.revokeObjectURL(url)
-      showToast(`已导出 ${data.questions.length} 题、${data.studyRecords.length} 条记录`)
+      showToast(
+        `已导出 ${data.questions.length} 题、${data.studyRecords.length} 条记录、${data.questionNotes.length} 条笔记、${data.questionFlags.filter((flag) => flag.starred).length} 个重点题、${aiSessions.length} 个 AI 会话`,
+      )
     } catch {
       showToast('导出失败，请重试', 'error')
     } finally {
       setExporting(false)
     }
-  }, [showToast])
+  }, [sessions, showToast])
 
   const handleImport = useCallback(
     async (file: File) => {
       setImporting(true)
+      setImportPreview(null)
       try {
         const text = await file.text()
-        const data = JSON.parse(text)
-
-        if (!data || typeof data !== 'object') throw new Error('文件格式无效')
-
-        let qCount = 0
-        let rCount = 0
-
-        if (Array.isArray(data.questions) && data.questions.length > 0) {
-          await bulkPutQuestions(data.questions)
-          qCount = data.questions.length
-        }
-
-        if (Array.isArray(data.studyRecords) && data.studyRecords.length > 0) {
-          await bulkPutStudyRecords(data.studyRecords)
-          rCount = data.studyRecords.length
-        }
-
-        showToast(`导入成功：${qCount} 题、${rCount} 条记录`)
-
-        // Refresh stats
-        const [questions, records] = await Promise.all([getAllQuestions(), getAllStudyRecords()])
-        setDataStats({ questions: questions.length, records: records.length })
+        const preview = parseImportPreview(file.name, text)
+        setImportPreview(await withImportImpact(preview, sessions))
+        showToast('已解析备份，请确认后导入', 'info')
       } catch (err) {
         const msg = err instanceof Error ? err.message : '文件解析失败'
         showToast(msg, 'error')
@@ -702,22 +844,96 @@ export function SettingsDrawer({ open, onClose }: SettingsDrawerProps) {
         if (importRef.current) importRef.current.value = ''
       }
     },
-    [showToast],
+    [sessions, showToast],
   )
+
+  const handleConfirmImport = useCallback(async () => {
+    if (!importPreview) return
+
+    setImporting(true)
+    try {
+      const qCount = importPreview.questions.length
+      const rCount = importPreview.studyRecords.length
+      const nCount = importPreview.questionNotes.length
+      const flagCount = importPreview.questionFlags.length
+      const starredCount = importPreview.questionFlags.filter((flag) => flag.starred).length
+      const aiCount = importPreview.aiSessions.length
+      const sourceCount = importPreview.customSources.length
+      const categoryCount = Object.keys(importPreview.customCategories).length
+
+      if (qCount > 0) {
+        await bulkPutQuestions(importPreview.questions)
+        invalidateQuestionsCache()
+      }
+
+      if (sourceCount > 0) {
+        const currentSources = await getCustomSources()
+        await setMeta(META_KEYS.CUSTOM_SOURCES, [
+          ...new Set([...currentSources, ...importPreview.customSources]),
+        ])
+      }
+
+      if (categoryCount > 0) {
+        const currentMap = await getCategoryMap()
+        await saveCategoryMap(mergeCategoryMaps(currentMap, importPreview.customCategories))
+      }
+
+      if (rCount > 0) {
+        await bulkPutStudyRecords(importPreview.studyRecords)
+      }
+
+      if (nCount > 0) {
+        await bulkPutQuestionNotes(importPreview.questionNotes)
+      }
+
+      if (flagCount > 0) {
+        await bulkPutQuestionFlags(importPreview.questionFlags)
+      }
+
+      if (aiCount > 0) {
+        upsertSessions(importPreview.aiSessions)
+      }
+
+      showToast(
+        `导入成功：${qCount} 题、${rCount} 条记录、${nCount} 条笔记、${starredCount} 个重点题、${aiCount} 个 AI 会话、${sourceCount} 个来源、${categoryCount} 个分类`,
+      )
+      setImportPreview(null)
+
+      const [questions, records, notes, flags] = await Promise.all([
+        getAllQuestions(),
+        getAllStudyRecords(),
+        getAllQuestionNotes(),
+        getAllQuestionFlags(),
+      ])
+      setDataStats({
+        questions: questions.length,
+        records: records.length,
+        notes: notes.length,
+        starred: flags.filter((flag) => flag.starred).length,
+        aiSessions: countMergedAISessions(sessions, importPreview.aiSessions),
+      })
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : '导入失败，请重试'
+      showToast(msg, 'error')
+    } finally {
+      setImporting(false)
+    }
+  }, [importPreview, sessions, showToast, upsertSessions])
 
   const handleResetConfirm = useCallback(async () => {
     if (!confirmReset) return
     try {
       if (confirmReset === 'records') {
         await resetAll()
+        setDataStats((prev) => (prev ? { ...prev, records: 0 } : prev))
         showToast('学习记录已清空')
       } else {
         await resetDatabase()
         await resetAll()
         clearAllSessions()
+        setDataStats({ questions: 0, records: 0, notes: 0, starred: 0, aiSessions: 0 })
         showToast('所有数据已重置')
       }
-      setDataStats({ questions: 0, records: 0 })
     } catch {
       showToast('操作失败，请重试', 'error')
     } finally {
@@ -725,18 +941,27 @@ export function SettingsDrawer({ open, onClose }: SettingsDrawerProps) {
     }
   }, [confirmReset, resetAll, clearAllSessions, showToast])
 
-  // ─── Determine model/url selection ────────────────────────────────────────
+  // ─── Determine AI provider/model selection ────────────────────────────────
 
-  const isCustomModel = !PRESET_MODELS.slice(0, -1).some((m) => m.value === localConfig.model)
-  const isCustomUrl = !PRESET_BASE_URLS.slice(0, -1).some((u) => u.value === localConfig.baseUrl)
-
-  const selectedModel = isCustomModel ? 'custom' : localConfig.model
-  const selectedUrl = isCustomUrl ? 'custom' : localConfig.baseUrl
+  const selectedProvider: AIProviderId = AI_PROVIDER_PRESETS.some(
+    (provider) => provider.id === localConfig.provider,
+  )
+    ? localConfig.provider
+    : 'custom'
+  const selectedProviderPreset = getAIProviderPreset(selectedProvider)
+  const modelOptions = selectedProviderPreset.models
+  const selectedModelPreset = modelOptions.find((model) => model.value === localConfig.model)
+  const selectedModel = selectedModelPreset ? localConfig.model : 'custom'
+  const isCustomProvider = selectedProvider === 'custom'
 
   useEffect(() => {
-    if (isCustomModel) setCustomModel(localConfig.model)
-    if (isCustomUrl) setCustomBaseUrl(localConfig.baseUrl)
-  }, [isCustomModel, isCustomUrl, localConfig.baseUrl, localConfig.model]) // eslint-disable-line react-hooks/exhaustive-deps
+    if (selectedModel === 'custom' && localConfig.model !== 'custom') {
+      setCustomModel(localConfig.model)
+    }
+    if (isCustomProvider && localConfig.baseUrl !== 'custom') {
+      setCustomBaseUrl(localConfig.baseUrl)
+    }
+  }, [isCustomProvider, localConfig.baseUrl, localConfig.model, selectedModel])
 
   if (!open) return null
 
@@ -764,6 +989,9 @@ export function SettingsDrawer({ open, onClose }: SettingsDrawerProps) {
       {/* Drawer */}
       <div
         ref={drawerRef}
+        role="dialog"
+        aria-modal="true"
+        aria-label="设置"
         style={{
           position: 'fixed',
           top: 0,
@@ -824,6 +1052,7 @@ export function SettingsDrawer({ open, onClose }: SettingsDrawerProps) {
           <button
             type="button"
             onClick={onClose}
+            aria-label="关闭设置面板"
             style={{
               width: 30,
               height: 30,
@@ -852,6 +1081,8 @@ export function SettingsDrawer({ open, onClose }: SettingsDrawerProps) {
 
         {/* Tabs */}
         <div
+          role="tablist"
+          aria-label="设置分类"
           style={{
             display: 'flex',
             gap: 2,
@@ -908,6 +1139,8 @@ export function SettingsDrawer({ open, onClose }: SettingsDrawerProps) {
               <button
                 type="button"
                 key={t}
+                role="tab"
+                aria-selected={active}
                 onClick={() => setTab(t)}
                 title={labels[t]}
                 style={{
@@ -1469,49 +1702,52 @@ export function SettingsDrawer({ open, onClose }: SettingsDrawerProps) {
                 description="在题目详情页启用 AI 辅助分析和面试指导"
               />
 
+              {/* Provider */}
+              <Field label="服务商" hint={selectedProviderPreset.note}>
+                <select
+                  value={selectedProvider}
+                  onChange={(e) => {
+                    const providerId = e.target.value as AIProviderId
+                    const provider = getAIProviderPreset(providerId)
+                    setTestResult(null)
+
+                    if (providerId === 'custom') {
+                      const nextBaseUrl = customBaseUrl || localConfig.baseUrl
+                      const nextModel = customModel || localConfig.model
+                      setCustomBaseUrl(nextBaseUrl)
+                      setCustomModel(nextModel === 'custom' ? '' : nextModel)
+                      patch({
+                        provider: providerId,
+                        baseUrl: nextBaseUrl,
+                        model: nextModel || 'custom',
+                      })
+                      return
+                    }
+
+                    patch({
+                      provider: providerId,
+                      baseUrl: provider.baseUrl,
+                      model: provider.defaultModel,
+                    })
+                  }}
+                  className="input-base"
+                  style={{ cursor: 'pointer' }}
+                >
+                  {AI_PROVIDER_PRESETS.map((provider) => (
+                    <option key={provider.id} value={provider.id}>
+                      {provider.label}
+                    </option>
+                  ))}
+                </select>
+              </Field>
+
               {/* API Key */}
               <Field label="API Key" hint="密钥仅存储在本地，不会上传到任何服务器">
                 <ApiKeyInput
                   value={localConfig.apiKey}
                   onChange={(v) => patch({ apiKey: v })}
-                  placeholder="sk-..."
+                  placeholder={selectedProviderPreset.apiKeyPlaceholder}
                 />
-              </Field>
-
-              {/* Base URL */}
-              <Field label="API Base URL">
-                <select
-                  value={selectedUrl}
-                  onChange={(e) => {
-                    const v = e.target.value
-                    if (v === 'custom') {
-                      patch({ baseUrl: customBaseUrl || 'custom' })
-                    } else {
-                      patch({ baseUrl: v })
-                    }
-                  }}
-                  className="input-base"
-                  style={{ cursor: 'pointer' }}
-                >
-                  {PRESET_BASE_URLS.map((opt) => (
-                    <option key={opt.value} value={opt.value}>
-                      {opt.label}
-                    </option>
-                  ))}
-                </select>
-                {selectedUrl === 'custom' && (
-                  <input
-                    type="text"
-                    value={customBaseUrl}
-                    onChange={(e) => {
-                      setCustomBaseUrl(e.target.value)
-                      patch({ baseUrl: e.target.value })
-                    }}
-                    placeholder="https://your-api.com/v1"
-                    className="input-base"
-                    style={{ marginTop: 6 }}
-                  />
-                )}
               </Field>
 
               {/* Model */}
@@ -1520,6 +1756,7 @@ export function SettingsDrawer({ open, onClose }: SettingsDrawerProps) {
                   value={selectedModel}
                   onChange={(e) => {
                     const v = e.target.value
+                    setTestResult(null)
                     if (v === 'custom') {
                       patch({ model: customModel || 'custom' })
                     } else {
@@ -1529,12 +1766,19 @@ export function SettingsDrawer({ open, onClose }: SettingsDrawerProps) {
                   className="input-base"
                   style={{ cursor: 'pointer' }}
                 >
-                  {PRESET_MODELS.map((opt) => (
-                    <option key={opt.value} value={opt.value}>
-                      {opt.label}
+                  {modelOptions.map((model) => (
+                    <option key={model.value} value={model.value}>
+                      {model.label}
+                      {model.recommended ? '（推荐）' : ''}
                     </option>
                   ))}
+                  <option value="custom">自定义模型</option>
                 </select>
+                {selectedModelPreset?.description && (
+                  <p style={{ fontSize: 11, color: 'var(--text-3)', lineHeight: 1.4 }}>
+                    {selectedModelPreset.description}
+                  </p>
+                )}
                 {selectedModel === 'custom' && (
                   <input
                     type="text"
@@ -1543,9 +1787,48 @@ export function SettingsDrawer({ open, onClose }: SettingsDrawerProps) {
                       setCustomModel(e.target.value)
                       patch({ model: e.target.value })
                     }}
-                    placeholder="模型名称，如 gpt-4-turbo"
+                    placeholder={
+                      isCustomProvider
+                        ? '模型名称，如 llama-3.3-70b'
+                        : `自定义 ${selectedProviderPreset.shortLabel} 模型 ID`
+                    }
                     className="input-base"
                     style={{ marginTop: 6 }}
+                  />
+                )}
+              </Field>
+
+              {/* Base URL */}
+              <Field
+                label="API Base URL"
+                hint={
+                  isCustomProvider
+                    ? '必须是 OpenAI Chat Completions 兼容接口地址'
+                    : '由服务商自动填写；如需代理网关，请选择自定义兼容接口'
+                }
+              >
+                {isCustomProvider ? (
+                  <input
+                    type="text"
+                    value={customBaseUrl}
+                    onChange={(e) => {
+                      setCustomBaseUrl(e.target.value)
+                      patch({ baseUrl: e.target.value })
+                    }}
+                    placeholder="https://your-api.com/v1"
+                    className="input-base"
+                  />
+                ) : (
+                  <input
+                    type="text"
+                    value={localConfig.baseUrl}
+                    readOnly
+                    className="input-base"
+                    style={{
+                      color: 'var(--text-2)',
+                      background: 'var(--surface-2)',
+                      cursor: 'default',
+                    }}
                   />
                 )}
               </Field>
@@ -2015,11 +2298,17 @@ export function SettingsDrawer({ open, onClose }: SettingsDrawerProps) {
                         setSyncPushing(true)
                         setLastSyncResult(null)
                         try {
-                          const result = await pushToGist(token)
+                          const result = await pushToGist(token, Object.values(sessions))
                           if (result.ok) {
+                            if (result.aiSessions?.length) {
+                              upsertSessions(result.aiSessions)
+                            }
+                            if (result.mergedRemoteQuestionCount) {
+                              invalidateQuestionsCache()
+                            }
                             setLastSyncResult({
                               ok: true,
-                              message: `已备份 ${result.recordCount ?? 0} 条学习记录、${result.questionCount ?? 0} 道自定义题目`,
+                              message: `已备份 ${result.recordCount ?? 0} 条学习记录、${result.questionCount ?? 0} 道自定义题目、${result.noteCount ?? 0} 条笔记、${result.questionFlagCount ?? 0} 个重点题、${result.aiSessionCount ?? 0} 个 AI 会话${formatRemoteMergeSummary(result)}`,
                               at: result.exportedAt,
                             })
                           } else {
@@ -2112,7 +2401,7 @@ export function SettingsDrawer({ open, onClose }: SettingsDrawerProps) {
                         setSyncPulling(true)
                         setLastSyncResult(null)
                         try {
-                          const result = await pullFromGist(token)
+                          const result = await pullFromGist(token, Object.values(sessions))
                           if (result === null) {
                             setLastSyncResult({
                               ok: false,
@@ -2120,9 +2409,12 @@ export function SettingsDrawer({ open, onClose }: SettingsDrawerProps) {
                             })
                           } else if (result.ok) {
                             invalidateQuestionsCache()
+                            if (result.aiSessions?.length) {
+                              upsertSessions(result.aiSessions)
+                            }
                             setLastSyncResult({
                               ok: true,
-                              message: `已恢复 ${result.recordCount ?? 0} 条学习记录、${result.questionCount ?? 0} 道自定义题目`,
+                              message: `已同步 ${result.recordCount ?? 0} 条学习记录、${result.questionCount ?? 0} 道自定义题目、${result.noteCount ?? 0} 条笔记、${result.questionFlagCount ?? 0} 个重点题、${result.aiSessionCount ?? 0} 个 AI 会话${formatRemoteMergeSummary(result)}`,
                               at: result.exportedAt,
                             })
                           } else {
@@ -2284,15 +2576,19 @@ export function SettingsDrawer({ open, onClose }: SettingsDrawerProps) {
               {/* Stats */}
               {dataStats && (
                 <div
+                  className="settings-data-stats-grid"
                   style={{
                     display: 'grid',
-                    gridTemplateColumns: '1fr 1fr',
+                    gridTemplateColumns: 'repeat(auto-fit, minmax(72px, 1fr))',
                     gap: 10,
                   }}
                 >
                   {[
                     { label: '题目总数', value: dataStats.questions, color: 'var(--primary)' },
                     { label: '学习记录', value: dataStats.records, color: 'var(--success)' },
+                    { label: '题目笔记', value: dataStats.notes, color: 'var(--warning)' },
+                    { label: '重点题', value: dataStats.starred, color: '#f59e0b' },
+                    { label: 'AI 会话', value: dataStats.aiSessions, color: 'var(--text-2)' },
                   ].map((stat) => (
                     <div
                       key={stat.label}
@@ -2342,7 +2638,7 @@ export function SettingsDrawer({ open, onClose }: SettingsDrawerProps) {
                     lineHeight: 1.5,
                   }}
                 >
-                  将题目库和学习记录导出为 JSON 文件，可用于备份或在其他设备恢复。
+                  将题目库、学习记录、题目笔记、重点题和 AI 对话导出为 JSON 文件；不会导出 API Key。
                 </p>
                 <button
                   type="button"
@@ -2402,7 +2698,7 @@ export function SettingsDrawer({ open, onClose }: SettingsDrawerProps) {
                     lineHeight: 1.5,
                   }}
                 >
-                  从备份文件恢复数据。已存在的题目和记录将被覆盖更新。
+                  从备份文件恢复数据。已存在的题目、记录、笔记、重点标记和 AI 会话将被覆盖更新。
                 </p>
                 <input
                   ref={importRef}
@@ -2448,8 +2744,169 @@ export function SettingsDrawer({ open, onClose }: SettingsDrawerProps) {
                   }}
                 >
                   <IconUpload />
-                  {importing ? '导入中…' : '选择文件'}
+                  {importing ? '处理中…' : '选择文件'}
                 </button>
+
+                {importPreview && (
+                  <div
+                    style={{
+                      marginTop: 12,
+                      padding: 12,
+                      borderRadius: 10,
+                      border: '1px solid rgba(var(--primary-rgb),0.22)',
+                      background: 'var(--primary-light)',
+                      display: 'flex',
+                      flexDirection: 'column',
+                      gap: 10,
+                    }}
+                  >
+                    <div>
+                      <p
+                        style={{
+                          fontSize: 12,
+                          fontWeight: 600,
+                          color: 'var(--primary)',
+                          marginBottom: 4,
+                        }}
+                      >
+                        待导入备份预览
+                      </p>
+                      <p
+                        style={{
+                          fontSize: 11,
+                          color: 'var(--text-3)',
+                          lineHeight: 1.5,
+                          wordBreak: 'break-all',
+                        }}
+                      >
+                        {importPreview.fileName} · 导出时间{' '}
+                        {formatBackupTime(importPreview.exportedAt)}
+                        {importPreview.formatVersion
+                          ? ` · 格式 v${importPreview.formatVersion}`
+                          : ''}
+                      </p>
+                    </div>
+
+                    <div
+                      className="settings-import-preview-grid"
+                      style={{
+                        display: 'grid',
+                        gridTemplateColumns: 'repeat(auto-fit, minmax(70px, 1fr))',
+                        gap: 8,
+                      }}
+                    >
+                      {[
+                        {
+                          label: '题目',
+                          value: importPreview.questions.length,
+                          impact: importPreview.impact.questions,
+                        },
+                        {
+                          label: '记录',
+                          value: importPreview.studyRecords.length,
+                          impact: importPreview.impact.studyRecords,
+                        },
+                        {
+                          label: '笔记',
+                          value: importPreview.questionNotes.length,
+                          impact: importPreview.impact.questionNotes,
+                        },
+                        {
+                          label: '重点',
+                          value: importPreview.questionFlags.filter((flag) => flag.starred).length,
+                          impact: importPreview.impact.questionFlags,
+                        },
+                        {
+                          label: 'AI',
+                          value: importPreview.aiSessions.length,
+                          impact: importPreview.impact.aiSessions,
+                        },
+                      ].map((item) => (
+                        <div
+                          key={item.label}
+                          style={{
+                            padding: '8px 10px',
+                            borderRadius: 8,
+                            background: 'rgba(255,255,255,0.5)',
+                            border: '1px solid rgba(var(--primary-rgb),0.12)',
+                          }}
+                        >
+                          <p
+                            style={{
+                              fontSize: 16,
+                              fontWeight: 700,
+                              color: 'var(--text)',
+                              lineHeight: 1.1,
+                              fontVariantNumeric: 'tabular-nums',
+                            }}
+                          >
+                            {item.value.toLocaleString()}
+                          </p>
+                          <p style={{ fontSize: 10, color: 'var(--text-3)', marginTop: 4 }}>
+                            {item.label}
+                          </p>
+                          <p style={{ fontSize: 10, color: 'var(--text-3)', marginTop: 6 }}>
+                            新增 {item.impact.created.toLocaleString()} · 覆盖{' '}
+                            {item.impact.overwritten.toLocaleString()}
+                          </p>
+                        </div>
+                      ))}
+                    </div>
+
+                    <p style={{ fontSize: 11, color: 'var(--text-2)', lineHeight: 1.5 }}>
+                      确认后才会写入本地数据；标记为覆盖的同 ID 题目、学习记录、笔记、重点标记和 AI
+                      会话会被备份内容替换。
+                      {importPreview.customSources.length > 0 ||
+                      Object.keys(importPreview.customCategories).length > 0
+                        ? ` 还会恢复 ${importPreview.customSources.length} 个自定义来源和 ${Object.keys(importPreview.customCategories).length} 个自定义分类。`
+                        : ''}
+                    </p>
+
+                    <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+                      <button
+                        type="button"
+                        onClick={handleConfirmImport}
+                        disabled={importing}
+                        style={{
+                          display: 'inline-flex',
+                          alignItems: 'center',
+                          justifyContent: 'center',
+                          gap: 6,
+                          padding: '7px 12px',
+                          borderRadius: 8,
+                          border: '1px solid var(--primary)',
+                          background: 'var(--primary)',
+                          color: 'white',
+                          fontSize: 12,
+                          fontWeight: 600,
+                          cursor: importing ? 'wait' : 'pointer',
+                          opacity: importing ? 0.65 : 1,
+                        }}
+                      >
+                        <IconCheck />
+                        {importing ? '导入中…' : '确认导入'}
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => setImportPreview(null)}
+                        disabled={importing}
+                        style={{
+                          padding: '7px 12px',
+                          borderRadius: 8,
+                          border: '1px solid var(--border)',
+                          background: 'var(--surface)',
+                          color: 'var(--text-2)',
+                          fontSize: 12,
+                          fontWeight: 500,
+                          cursor: importing ? 'default' : 'pointer',
+                          opacity: importing ? 0.65 : 1,
+                        }}
+                      >
+                        取消
+                      </button>
+                    </div>
+                  </div>
+                )}
               </div>
 
               {/* Clear records */}
@@ -2831,11 +3288,17 @@ export function SettingsDrawer({ open, onClose }: SettingsDrawerProps) {
       {toast && <Toast message={toast.message} type={toast.type} />}
 
       <style>{`
-        @keyframes drawer-slide-in {
-          from { transform: translateX(100%); opacity: 0.8; }
-          to { transform: translateX(0); opacity: 1; }
-        }
-      `}</style>
+	        @keyframes drawer-slide-in {
+	          from { transform: translateX(100%); opacity: 0.8; }
+	          to { transform: translateX(0); opacity: 1; }
+	        }
+	        @media (max-width: 420px) {
+	          .settings-data-stats-grid,
+	          .settings-import-preview-grid {
+	            grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
+	          }
+	        }
+	      `}</style>
     </>
   )
 }

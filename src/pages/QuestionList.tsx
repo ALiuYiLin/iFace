@@ -1,7 +1,9 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
-import { Link, useSearchParams } from 'react-router-dom'
+import { Link, useNavigate, useSearchParams } from 'react-router-dom'
 import { Button, EmptyState, Skeleton } from '@/components/ui'
 import { applyFilters, useQuestions } from '@/hooks/useQuestions'
+import { getAllQuestionFlags, getAllQuestionNotes } from '@/lib/db'
+import { createPracticeSessionPath } from '@/lib/practiceSession'
 import { useStudyStore } from '@/store/useStudyStore'
 import {
   BUILTIN_MODULE_CATEGORY,
@@ -10,6 +12,9 @@ import {
   DIFFICULTY_STYLES,
   type Difficulty,
   type Module,
+  type Question,
+  type QuestionFlag,
+  type QuestionNote,
   STATUS_LABELS,
   STATUS_STYLES,
   type StudyStatus,
@@ -21,9 +26,15 @@ interface FilterPanelProps {
   selectedModules: Module[]
   selectedDifficulties: Difficulty[]
   selectedStatuses: StudyStatus[]
+  starredOnly: boolean
+  notesOnly: boolean
+  starredCount: number
+  noteCount: number
   onModuleToggle: (m: Module) => void
   onDifficultyToggle: (d: Difficulty) => void
   onStatusToggle: (s: StudyStatus) => void
+  onStarredOnlyToggle: () => void
+  onNotesOnlyToggle: () => void
   onClear: () => void
   totalFiltered: number
   totalAll: number
@@ -35,16 +46,26 @@ function FilterPanel({
   selectedModules,
   selectedDifficulties,
   selectedStatuses,
+  starredOnly,
+  notesOnly,
+  starredCount,
+  noteCount,
   onModuleToggle,
   onDifficultyToggle,
   onStatusToggle,
+  onStarredOnlyToggle,
+  onNotesOnlyToggle,
   onClear,
   totalFiltered,
   totalAll,
   availableModules,
 }: FilterPanelProps) {
   const hasFilters =
-    selectedModules.length > 0 || selectedDifficulties.length > 0 || selectedStatuses.length > 0
+    selectedModules.length > 0 ||
+    selectedDifficulties.length > 0 ||
+    selectedStatuses.length > 0 ||
+    starredOnly ||
+    notesOnly
 
   return (
     <aside
@@ -97,6 +118,187 @@ function FilterPanel({
       <div style={{ fontSize: 12, color: 'var(--text-3)' }}>
         显示 <span style={{ fontWeight: 600, color: 'var(--text)' }}>{totalFiltered}</span> /{' '}
         {totalAll} 题
+      </div>
+
+      {/* Review */}
+      <div>
+        <p
+          style={{
+            fontSize: 11,
+            fontWeight: 500,
+            color: 'var(--text-3)',
+            marginBottom: 6,
+            textTransform: 'uppercase',
+            letterSpacing: '0.05em',
+          }}
+        >
+          复盘
+        </p>
+        <button
+          type="button"
+          aria-pressed={starredOnly}
+          title={starredOnly ? '关闭只看重点题' : '只看重点题'}
+          onClick={onStarredOnlyToggle}
+          style={{
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'space-between',
+            gap: 8,
+            width: '100%',
+            minHeight: 36,
+            padding: '7px 10px',
+            borderRadius: 10,
+            border: starredOnly
+              ? '1px solid rgba(245,158,11,0.35)'
+              : '1px solid var(--border-subtle)',
+            background: starredOnly ? 'rgba(245,158,11,0.1)' : 'var(--surface)',
+            color: starredOnly ? '#b45309' : 'var(--text-2)',
+            cursor: 'pointer',
+            transition: 'background 0.12s, border-color 0.12s, color 0.12s',
+            marginBottom: 6,
+          }}
+        >
+          <span style={{ display: 'inline-flex', alignItems: 'center', gap: 7, minWidth: 0 }}>
+            <svg
+              width="13"
+              height="13"
+              viewBox="0 0 24 24"
+              fill={starredOnly ? 'currentColor' : 'none'}
+              stroke="currentColor"
+              strokeWidth="2.1"
+              strokeLinecap="round"
+              strokeLinejoin="round"
+              style={{ flexShrink: 0 }}
+            >
+              <polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2" />
+            </svg>
+            <span
+              style={{
+                fontSize: 13,
+                fontWeight: starredOnly ? 600 : 500,
+                overflow: 'hidden',
+                textOverflow: 'ellipsis',
+                whiteSpace: 'nowrap',
+              }}
+            >
+              只看重点题
+            </span>
+          </span>
+          <span style={{ display: 'inline-flex', alignItems: 'center', gap: 6, flexShrink: 0 }}>
+            <span
+              style={{
+                minWidth: 20,
+                padding: '1px 6px',
+                borderRadius: 99,
+                fontSize: 11,
+                fontWeight: 600,
+                lineHeight: 1.45,
+                textAlign: 'center',
+                background: starredOnly ? 'rgba(255,255,255,0.55)' : 'var(--surface-2)',
+                color: starredOnly ? '#b45309' : 'var(--text-3)',
+              }}
+            >
+              {starredCount}
+            </span>
+            {starredOnly && (
+              <svg
+                width="12"
+                height="12"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                strokeWidth="3"
+                strokeLinecap="round"
+                strokeLinejoin="round"
+              >
+                <polyline points="20 6 9 17 4 12" />
+              </svg>
+            )}
+          </span>
+        </button>
+        <button
+          type="button"
+          aria-pressed={notesOnly}
+          title={notesOnly ? '关闭只看有笔记 (N)' : '只看有笔记 (N)'}
+          onClick={onNotesOnlyToggle}
+          style={{
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'space-between',
+            gap: 8,
+            width: '100%',
+            minHeight: 36,
+            padding: '7px 10px',
+            borderRadius: 10,
+            border: notesOnly
+              ? '1px solid rgba(var(--primary-rgb), 0.28)'
+              : '1px solid var(--border-subtle)',
+            background: notesOnly ? 'var(--primary-light)' : 'var(--surface)',
+            color: notesOnly ? 'var(--primary)' : 'var(--text-2)',
+            cursor: 'pointer',
+            transition: 'background 0.12s, border-color 0.12s, color 0.12s',
+          }}
+        >
+          <span style={{ display: 'inline-flex', alignItems: 'center', gap: 7, minWidth: 0 }}>
+            <svg
+              width="13"
+              height="13"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              strokeWidth="2.2"
+              strokeLinecap="round"
+              strokeLinejoin="round"
+              style={{ flexShrink: 0 }}
+            >
+              <path d="M4 19.5V5a2 2 0 0 1 2-2h12v18H6a2 2 0 0 1-2-1.5z" />
+              <path d="M8 7h6" />
+              <path d="M8 11h8" />
+            </svg>
+            <span
+              style={{
+                fontSize: 13,
+                fontWeight: notesOnly ? 600 : 500,
+                overflow: 'hidden',
+                textOverflow: 'ellipsis',
+                whiteSpace: 'nowrap',
+              }}
+            >
+              只看有笔记
+            </span>
+          </span>
+          <span style={{ display: 'inline-flex', alignItems: 'center', gap: 6, flexShrink: 0 }}>
+            <span
+              style={{
+                minWidth: 20,
+                padding: '1px 6px',
+                borderRadius: 99,
+                fontSize: 11,
+                fontWeight: 600,
+                lineHeight: 1.45,
+                textAlign: 'center',
+                background: notesOnly ? 'rgba(255,255,255,0.55)' : 'var(--surface-2)',
+                color: notesOnly ? 'var(--primary)' : 'var(--text-3)',
+              }}
+            >
+              {noteCount}
+            </span>
+            {notesOnly && (
+              <svg
+                width="12"
+                height="12"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                strokeWidth="3"
+                strokeLinecap="round"
+                strokeLinejoin="round"
+              >
+                <polyline points="20 6 9 17 4 12" />
+              </svg>
+            )}
+          </span>
+        </button>
       </div>
 
       {/* Module */}
@@ -404,12 +606,24 @@ interface QuestionCardProps {
   }
   status: StudyStatus
   index: number
+  starred: boolean
+  hasNote: boolean
+  noteSearchMatched?: boolean
+  noteSnippet?: string
 }
 
-function QuestionCard({ question: q, status, index }: QuestionCardProps) {
+function QuestionCard({
+  question: q,
+  status,
+  index,
+  starred,
+  hasNote,
+  noteSearchMatched,
+  noteSnippet,
+}: QuestionCardProps) {
   return (
     <Link
-      to={`/questions/${q.id}`}
+      to={`/questions/${q.id}${noteSearchMatched ? '?note=1' : ''}`}
       className="animate-fade-in card card-interactive"
       style={{
         display: 'flex',
@@ -519,6 +733,74 @@ function QuestionCard({ question: q, status, index }: QuestionCardProps) {
             </span>
           )}
 
+          {/* Starred badge */}
+          {starred && (
+            <span
+              title="重点题"
+              style={{
+                display: 'inline-flex',
+                alignItems: 'center',
+                gap: 4,
+                fontSize: 11,
+                fontWeight: 500,
+                padding: '1px 7px',
+                borderRadius: 5,
+                background: 'rgba(245,158,11,0.1)',
+                color: '#b45309',
+                border: '1px solid rgba(245,158,11,0.22)',
+              }}
+            >
+              <svg
+                width="10"
+                height="10"
+                viewBox="0 0 24 24"
+                fill="currentColor"
+                stroke="currentColor"
+                strokeWidth="1.8"
+                strokeLinecap="round"
+                strokeLinejoin="round"
+              >
+                <polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2" />
+              </svg>
+              重点
+            </span>
+          )}
+
+          {/* Note badge */}
+          {hasNote && (
+            <span
+              title={noteSearchMatched ? '笔记内容匹配当前搜索' : '这道题有笔记'}
+              style={{
+                display: 'inline-flex',
+                alignItems: 'center',
+                gap: 4,
+                fontSize: 11,
+                fontWeight: 500,
+                padding: '1px 7px',
+                borderRadius: 5,
+                background: 'rgba(99,102,241,0.08)',
+                color: 'var(--primary)',
+                border: '1px solid rgba(var(--primary-rgb), 0.18)',
+              }}
+            >
+              <svg
+                width="10"
+                height="10"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                strokeWidth="2.2"
+                strokeLinecap="round"
+                strokeLinejoin="round"
+              >
+                <path d="M4 19.5V5a2 2 0 0 1 2-2h12v18H6a2 2 0 0 1-2-1.5z" />
+                <path d="M8 7h6" />
+                <path d="M8 11h8" />
+              </svg>
+              {noteSearchMatched ? '命中笔记' : '笔记'}
+            </span>
+          )}
+
           {/* Tags (first 2 only) */}
           {q.tags.slice(0, 2).map((tag) => (
             <span
@@ -535,6 +817,59 @@ function QuestionCard({ question: q, status, index }: QuestionCardProps) {
             </span>
           ))}
         </div>
+
+        {noteSearchMatched && noteSnippet && (
+          <div
+            style={{
+              marginTop: 10,
+              padding: '9px 10px',
+              borderRadius: 8,
+              background: 'var(--surface-2)',
+              border: '1px solid rgba(var(--primary-rgb), 0.14)',
+            }}
+          >
+            <div
+              style={{
+                display: 'flex',
+                alignItems: 'center',
+                gap: 6,
+                marginBottom: 4,
+                color: 'var(--primary)',
+                fontSize: 11,
+                fontWeight: 600,
+              }}
+            >
+              <svg
+                width="11"
+                height="11"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                strokeWidth="2.2"
+                strokeLinecap="round"
+                strokeLinejoin="round"
+              >
+                <path d="M4 19.5V5a2 2 0 0 1 2-2h12v18H6a2 2 0 0 1-2-1.5z" />
+                <path d="M8 7h6" />
+                <path d="M8 11h8" />
+              </svg>
+              笔记摘录
+            </div>
+            <p
+              style={{
+                fontSize: 12,
+                color: 'var(--text-2)',
+                lineHeight: 1.55,
+                overflow: 'hidden',
+                display: '-webkit-box',
+                WebkitLineClamp: 2,
+                WebkitBoxOrient: 'vertical',
+              }}
+            >
+              {noteSnippet}
+            </p>
+          </div>
+        )}
       </div>
 
       {/* Arrow */}
@@ -607,26 +942,149 @@ type SortOption = {
 
 const SORT_OPTIONS: SortOption[] = [
   { value: 'default', label: '默认排序' },
+  { value: 'note-updated', label: '最近笔记' },
   { value: 'difficulty-asc', label: '难度↑' },
   { value: 'difficulty-desc', label: '难度↓' },
   { value: 'module', label: '按模块' },
 ]
+
+const SORT_VALUES = new Set(SORT_OPTIONS.map((option) => option.value))
+const STATUS_VALUES = new Set<StudyStatus>(['unlearned', 'review', 'mastered'])
+const DIFFICULTY_VALUES = new Set<Difficulty>([1, 2, 3])
+
+function parseListParam(params: URLSearchParams, key: string): string[] {
+  return params
+    .getAll(key)
+    .flatMap((value) => value.split(','))
+    .map((value) => value.trim())
+    .filter(Boolean)
+}
+
+function uniqueValues<T>(values: T[]): T[] {
+  return [...new Set(values)]
+}
+
+function areArraysEqual<T>(a: T[], b: T[]): boolean {
+  return a.length === b.length && a.every((value, index) => value === b[index])
+}
+
+function parseModuleParams(params: URLSearchParams): Module[] {
+  return uniqueValues(parseListParam(params, 'module') as Module[])
+}
+
+function parseDifficultyParams(params: URLSearchParams): Difficulty[] {
+  return uniqueValues(
+    parseListParam(params, 'difficulty')
+      .map((value) => Number(value))
+      .filter((value): value is Difficulty => DIFFICULTY_VALUES.has(value as Difficulty)),
+  )
+}
+
+function parseStatusParams(params: URLSearchParams): StudyStatus[] {
+  return uniqueValues(
+    parseListParam(params, 'status').filter((value): value is StudyStatus =>
+      STATUS_VALUES.has(value as StudyStatus),
+    ),
+  )
+}
+
+function parseSortParam(params: URLSearchParams): string {
+  const value = params.get('sort') ?? 'default'
+  return SORT_VALUES.has(value) ? value : 'default'
+}
+
+function parseNotesOnlyParam(params: URLSearchParams): boolean {
+  return params.get('notes') === '1'
+}
+
+function parseStarredOnlyParam(params: URLSearchParams): boolean {
+  return params.get('starred') === '1'
+}
+
+function normalizeKeyword(value: string): string {
+  return value.trim().toLowerCase()
+}
+
+function questionMatchesKeyword(question: Question, keyword: string): boolean {
+  if (!keyword) return true
+  return (
+    question.question.toLowerCase().includes(keyword) ||
+    question.tags.some((tag) => tag.toLowerCase().includes(keyword)) ||
+    question.module.toLowerCase().includes(keyword) ||
+    Boolean(question.source?.toLowerCase().includes(keyword))
+  )
+}
+
+function getNoteSearchSnippet(content: string, keyword: string): string {
+  const text = content
+    .replace(/```[\s\S]*?```/g, ' ')
+    .replace(/[#>*_[\]`~-]+/g, ' ')
+    .replace(/\s+/g, ' ')
+    .trim()
+
+  if (!text) return ''
+
+  const index = keyword ? text.toLowerCase().indexOf(keyword) : -1
+  if (index === -1) return text.length > 120 ? `${text.slice(0, 120)}...` : text
+
+  const start = Math.max(0, index - 36)
+  const end = Math.min(text.length, index + keyword.length + 64)
+  const prefix = start > 0 ? '...' : ''
+  const suffix = end < text.length ? '...' : ''
+  return `${prefix}${text.slice(start, end)}${suffix}`
+}
+
+function sortQuestionsByRecentNote(
+  questions: Question[],
+  noteByQuestionId: Map<string, QuestionNote>,
+): Question[] {
+  return [...questions].sort((a, b) => {
+    const aUpdatedAt = noteByQuestionId.get(a.id)?.updatedAt ?? 0
+    const bUpdatedAt = noteByQuestionId.get(b.id)?.updatedAt ?? 0
+    if (aUpdatedAt !== bUpdatedAt) return bUpdatedAt - aUpdatedAt
+    return 0
+  })
+}
+
+function buildQuestionListParams({
+  modules,
+  difficulties,
+  statuses,
+  starredOnly,
+  notesOnly,
+  search,
+  sort,
+}: {
+  modules: Module[]
+  difficulties: Difficulty[]
+  statuses: StudyStatus[]
+  starredOnly: boolean
+  notesOnly: boolean
+  search: string
+  sort: string
+}): URLSearchParams {
+  const params = new URLSearchParams()
+  if (modules.length > 0) params.set('module', modules.join(','))
+  if (difficulties.length > 0) params.set('difficulty', difficulties.join(','))
+  if (statuses.length > 0) params.set('status', statuses.join(','))
+  if (starredOnly) params.set('starred', '1')
+  if (notesOnly) params.set('notes', '1')
+  if (search.trim()) params.set('q', search.trim())
+  if (sort !== 'default') params.set('sort', sort)
+  return params
+}
 
 // ─── Main Page ────────────────────────────────────────────────────────────────
 
 const PAGE_SIZE = 30
 
 export default function QuestionList() {
+  const navigate = useNavigate()
   const [searchParams, setSearchParams] = useSearchParams()
   const { allQuestions, initializing } = useQuestions()
   const { records, getStatus } = useStudyStore()
 
   // ── Filter state (sync with URL) ──
-  const initModules = useMemo(() => {
-    const m = searchParams.get('module')
-    return m ? [m as Module] : []
-  }, [searchParams.get]) // eslint-disable-line react-hooks/exhaustive-deps
-
   // Derive sorted module list from actual questions (built-ins first, then custom alphabetically)
   const availableModules = useMemo<Module[]>(() => {
     const moduleSet = new Set(allQuestions.map((q) => q.module))
@@ -637,15 +1095,80 @@ export default function QuestionList() {
     return [...builtins, ...custom]
   }, [allQuestions])
 
-  const [selectedModules, setSelectedModules] = useState<Module[]>(initModules)
-  const [selectedDifficulties, setSelectedDifficulties] = useState<Difficulty[]>([])
-  const [selectedStatuses, setSelectedStatuses] = useState<StudyStatus[]>([])
-  const [search, setSearch] = useState(searchParams.get('q') ?? '')
-  const [sort, setSort] = useState<string>('default')
+  const [selectedModules, setSelectedModules] = useState<Module[]>(() =>
+    parseModuleParams(searchParams),
+  )
+  const [selectedDifficulties, setSelectedDifficulties] = useState<Difficulty[]>(() =>
+    parseDifficultyParams(searchParams),
+  )
+  const [selectedStatuses, setSelectedStatuses] = useState<StudyStatus[]>(() =>
+    parseStatusParams(searchParams),
+  )
+  const [starredOnly, setStarredOnly] = useState(() => parseStarredOnlyParam(searchParams))
+  const [notesOnly, setNotesOnly] = useState(() => parseNotesOnlyParam(searchParams))
+  const [search, setSearch] = useState(() => searchParams.get('q') ?? '')
+  const [sort, setSort] = useState<string>(() => parseSortParam(searchParams))
   const [page, setPage] = useState(1)
   const [mobileFilterOpen, setMobileFilterOpen] = useState(false)
+  const [questionFlags, setQuestionFlags] = useState<QuestionFlag[]>([])
+  const [questionNotes, setQuestionNotes] = useState<QuestionNote[]>([])
 
   const searchRef = useRef<HTMLInputElement>(null)
+  const lastSyncedSearchRef = useRef(searchParams.toString())
+
+  useEffect(() => {
+    let cancelled = false
+
+    const loadQuestionNotes = async () => {
+      try {
+        const notes = await getAllQuestionNotes()
+        if (!cancelled) setQuestionNotes(notes)
+      } catch {
+        if (!cancelled) setQuestionNotes([])
+      }
+    }
+
+    loadQuestionNotes()
+    window.addEventListener('focus', loadQuestionNotes)
+    return () => {
+      cancelled = true
+      window.removeEventListener('focus', loadQuestionNotes)
+    }
+  }, [])
+
+  useEffect(() => {
+    let cancelled = false
+
+    const loadQuestionFlags = async () => {
+      try {
+        const flags = await getAllQuestionFlags()
+        if (!cancelled) setQuestionFlags(flags)
+      } catch {
+        if (!cancelled) setQuestionFlags([])
+      }
+    }
+
+    loadQuestionFlags()
+    window.addEventListener('focus', loadQuestionFlags)
+    return () => {
+      cancelled = true
+      window.removeEventListener('focus', loadQuestionFlags)
+    }
+  }, [])
+
+  const noteByQuestionId = useMemo(() => {
+    const map = new Map<string, QuestionNote>()
+    for (const note of questionNotes) {
+      if (note.content.trim()) map.set(note.questionId, note)
+    }
+    return map
+  }, [questionNotes])
+
+  const noteIds = useMemo(() => new Set(noteByQuestionId.keys()), [noteByQuestionId])
+  const starredIds = useMemo(
+    () => new Set(questionFlags.filter((flag) => flag.starred).map((flag) => flag.questionId)),
+    [questionFlags],
+  )
 
   // ── Debounced search ──
   const [debouncedSearch, setDebouncedSearch] = useState(search)
@@ -654,18 +1177,86 @@ export default function QuestionList() {
     return () => clearTimeout(t)
   }, [search])
 
-  // ── Reset page on filter change ──
-  useEffect(() => {
-    setPage(1)
-  }, [])
-
   // ── Sync URL params ──
   useEffect(() => {
-    const params: Record<string, string> = {}
-    if (selectedModules.length === 1) params.module = selectedModules[0]
-    if (debouncedSearch) params.q = debouncedSearch
-    setSearchParams(params, { replace: true })
-  }, [selectedModules, debouncedSearch, setSearchParams])
+    const currentSearch = searchParams.toString()
+    const desiredParams = buildQuestionListParams({
+      modules: selectedModules,
+      difficulties: selectedDifficulties,
+      statuses: selectedStatuses,
+      starredOnly,
+      notesOnly,
+      search: debouncedSearch,
+      sort,
+    })
+    const desiredSearch = desiredParams.toString()
+
+    if (currentSearch !== lastSyncedSearchRef.current && currentSearch !== desiredSearch) {
+      const nextParams = new URLSearchParams(currentSearch)
+      const nextModules = parseModuleParams(nextParams)
+      const nextDifficulties = parseDifficultyParams(nextParams)
+      const nextStatuses = parseStatusParams(nextParams)
+      const nextStarredOnly = parseStarredOnlyParam(nextParams)
+      const nextNotesOnly = parseNotesOnlyParam(nextParams)
+      const nextSearch = nextParams.get('q') ?? ''
+      const nextSort = parseSortParam(nextParams)
+      let changed = false
+
+      if (!areArraysEqual(selectedModules, nextModules)) {
+        setSelectedModules(nextModules)
+        changed = true
+      }
+      if (!areArraysEqual(selectedDifficulties, nextDifficulties)) {
+        setSelectedDifficulties(nextDifficulties)
+        changed = true
+      }
+      if (!areArraysEqual(selectedStatuses, nextStatuses)) {
+        setSelectedStatuses(nextStatuses)
+        changed = true
+      }
+      if (notesOnly !== nextNotesOnly) {
+        setNotesOnly(nextNotesOnly)
+        changed = true
+      }
+      if (starredOnly !== nextStarredOnly) {
+        setStarredOnly(nextStarredOnly)
+        changed = true
+      }
+      if (search !== nextSearch) {
+        setSearch(nextSearch)
+        changed = true
+      }
+      if (debouncedSearch !== nextSearch) {
+        setDebouncedSearch(nextSearch)
+        changed = true
+      }
+      if (sort !== nextSort) {
+        setSort(nextSort)
+        changed = true
+      }
+      if (changed) setPage(1)
+      lastSyncedSearchRef.current = currentSearch
+      return
+    }
+
+    if (currentSearch !== desiredSearch) {
+      lastSyncedSearchRef.current = desiredSearch
+      setSearchParams(desiredParams, { replace: true })
+    } else {
+      lastSyncedSearchRef.current = currentSearch
+    }
+  }, [
+    searchParams,
+    selectedModules,
+    selectedDifficulties,
+    selectedStatuses,
+    starredOnly,
+    notesOnly,
+    search,
+    debouncedSearch,
+    sort,
+    setSearchParams,
+  ])
 
   // ── Keyboard shortcut: / to focus search ──
   useEffect(() => {
@@ -685,51 +1276,146 @@ export default function QuestionList() {
 
   // ── Filter helpers ──
   const toggleModule = useCallback((m: Module) => {
+    setPage(1)
     setSelectedModules((prev) => (prev.includes(m) ? prev.filter((x) => x !== m) : [...prev, m]))
   }, [])
 
   const toggleDifficulty = useCallback((d: Difficulty) => {
+    setPage(1)
     setSelectedDifficulties((prev) =>
       prev.includes(d) ? prev.filter((x) => x !== d) : [...prev, d],
     )
   }, [])
 
   const toggleStatus = useCallback((s: StudyStatus) => {
+    setPage(1)
     setSelectedStatuses((prev) => (prev.includes(s) ? prev.filter((x) => x !== s) : [...prev, s]))
   }, [])
 
+  const toggleNotesOnly = useCallback(() => {
+    setPage(1)
+    setNotesOnly((prev) => !prev)
+  }, [])
+
+  const toggleStarredOnly = useCallback(() => {
+    setPage(1)
+    setStarredOnly((prev) => !prev)
+  }, [])
+
+  useEffect(() => {
+    const handler = (e: KeyboardEvent) => {
+      const activeElement = document.activeElement as HTMLElement | null
+      const activeTag = activeElement?.tagName ?? ''
+      const isTyping =
+        activeElement?.isContentEditable || ['INPUT', 'TEXTAREA', 'SELECT'].includes(activeTag)
+
+      if (e.key.toLowerCase() !== 'n' || e.metaKey || e.ctrlKey || e.altKey || isTyping) return
+      e.preventDefault()
+      toggleNotesOnly()
+    }
+
+    window.addEventListener('keydown', handler)
+    return () => window.removeEventListener('keydown', handler)
+  }, [toggleNotesOnly])
+
   const clearFilters = useCallback(() => {
+    setPage(1)
     setSelectedModules([])
     setSelectedDifficulties([])
     setSelectedStatuses([])
+    setStarredOnly(false)
+    setNotesOnly(false)
     setSearch('')
   }, [])
 
+  const handleSearchChange = useCallback((value: string) => {
+    setPage(1)
+    setSearch(value)
+  }, [])
+
+  const handleSortChange = useCallback((value: string) => {
+    setPage(1)
+    setSort(value)
+  }, [])
+
   // ── Filtered questions ──
-  const filteredQuestions = useMemo(() => {
+  const filteredResult = useMemo(() => {
     const recordMap = Object.fromEntries(
       Object.entries(records).map(([k, v]) => [k, { status: v.status }]),
     )
-    return applyFilters(
+    const structuralQuestions = applyFilters(
       allQuestions,
       {
         modules: selectedModules,
         difficulties: selectedDifficulties,
         statuses: selectedStatuses,
-        search: debouncedSearch,
+        search: '',
       },
       recordMap,
-      sort as any,
+      (sort === 'note-updated' ? 'default' : sort) as any,
     )
+
+    const keyword = normalizeKeyword(debouncedSearch)
+    const noteSearchMatchedIds = new Set<string>()
+    const noteSearchSnippets = new Map<string, string>()
+    const searchedQuestions = keyword
+      ? structuralQuestions.filter((q) => {
+          const questionMatched = questionMatchesKeyword(q, keyword)
+          const noteContent = noteByQuestionId.get(q.id)?.content
+          const noteMatched = noteContent?.toLowerCase().includes(keyword)
+          if (noteMatched && noteContent) {
+            noteSearchMatchedIds.add(q.id)
+            noteSearchSnippets.set(q.id, getNoteSearchSnippet(noteContent, keyword))
+          }
+          return questionMatched || noteMatched
+        })
+      : structuralQuestions
+
+    const starredQuestions = starredOnly
+      ? searchedQuestions.filter((q) => starredIds.has(q.id))
+      : searchedQuestions
+    const questions = notesOnly
+      ? starredQuestions.filter((q) => noteIds.has(q.id))
+      : starredQuestions
+    const sortedQuestions =
+      sort === 'note-updated' ? sortQuestionsByRecentNote(questions, noteByQuestionId) : questions
+
+    return { questions: sortedQuestions, noteSearchMatchedIds, noteSearchSnippets }
   }, [
     allQuestions,
     selectedModules,
     selectedDifficulties,
     selectedStatuses,
+    starredOnly,
+    starredIds,
+    notesOnly,
+    noteIds,
+    noteByQuestionId,
     debouncedSearch,
     sort,
     records,
   ])
+
+  const filteredQuestions = filteredResult.questions
+  const noteSearchMatchedIds = filteredResult.noteSearchMatchedIds
+  const noteSearchSnippets = filteredResult.noteSearchSnippets
+
+  const notedQuestionCount = useMemo(
+    () => allQuestions.reduce((count, question) => count + (noteIds.has(question.id) ? 1 : 0), 0),
+    [allQuestions, noteIds],
+  )
+  const starredQuestionCount = useMemo(
+    () =>
+      allQuestions.reduce((count, question) => count + (starredIds.has(question.id) ? 1 : 0), 0),
+    [allQuestions, starredIds],
+  )
+
+  const currentSessionIds = useMemo(() => filteredQuestions.map((q) => q.id), [filteredQuestions])
+
+  const handleStartFilteredSession = useCallback(() => {
+    if (currentSessionIds.length === 0) return
+    navigate(createPracticeSessionPath(currentSessionIds[0], currentSessionIds))
+  }, [currentSessionIds, navigate])
 
   // ── Paginated ──
   const pagedQuestions = filteredQuestions.slice(0, page * PAGE_SIZE)
@@ -753,6 +1439,8 @@ export default function QuestionList() {
     selectedModules.length > 0 ||
     selectedDifficulties.length > 0 ||
     selectedStatuses.length > 0 ||
+    starredOnly ||
+    notesOnly ||
     debouncedSearch.length > 0
 
   // Keep selectedModules valid when availableModules changes (e.g. after import)
@@ -760,6 +1448,25 @@ export default function QuestionList() {
     if (availableModules.length === 0) return
     setSelectedModules((prev) => prev.filter((m) => availableModules.includes(m)))
   }, [availableModules])
+
+  const emptyStateTitle = !hasFilters
+    ? '题库为空'
+    : starredOnly && starredQuestionCount === 0
+      ? '还没有重点题'
+      : notesOnly && notedQuestionCount === 0
+        ? '还没有题目笔记'
+        : '没有匹配的题目'
+  const emptyStateDescription = !hasFilters
+    ? '请前往「导入题目」页面加载题库'
+    : starredOnly && starredQuestionCount === 0
+      ? '在题目详情中标记重点题后，可在这里集中复习'
+      : notesOnly && notedQuestionCount === 0
+        ? '打开任意题目的笔记入口，记录理解或把 AI 复盘保存为笔记'
+        : starredOnly
+          ? '当前筛选条件下没有重点题，可以清除部分条件再试'
+          : notesOnly
+            ? '当前筛选条件下没有带笔记的题目，可以清除部分条件再试'
+            : '试试调整筛选条件，或搜索题目、标签、模块和笔记内容'
 
   return (
     <div className="page-container">
@@ -785,7 +1492,9 @@ export default function QuestionList() {
             题库
           </h1>
           <p style={{ fontSize: 12, color: 'var(--text-3)', marginTop: 2 }}>
-            共 {allQuestions.length} 道题
+            {hasFilters
+              ? `当前显示 ${filteredQuestions.length} / ${allQuestions.length} 道题`
+              : `共 ${allQuestions.length} 道题`}
           </p>
         </div>
         <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
@@ -839,7 +1548,7 @@ export default function QuestionList() {
           {/* Sort */}
           <select
             value={sort}
-            onChange={(e) => setSort(e.target.value)}
+            onChange={(e) => handleSortChange(e.target.value)}
             style={{
               fontSize: 13,
               padding: '6px 10px',
@@ -857,6 +1566,32 @@ export default function QuestionList() {
               </option>
             ))}
           </select>
+
+          {currentSessionIds.length > 0 && (
+            <Button
+              variant="primary"
+              size="sm"
+              onClick={handleStartFilteredSession}
+              icon={
+                <svg
+                  width="12"
+                  height="12"
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="currentColor"
+                  strokeWidth="2.5"
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                >
+                  <polygon points="5 3 19 12 5 21 5 3" />
+                </svg>
+              }
+              className="question-list-start-btn"
+            >
+              练习当前
+              <span className="question-list-start-count">{currentSessionIds.length}</span>
+            </Button>
+          )}
         </div>
       </div>
 
@@ -886,9 +1621,9 @@ export default function QuestionList() {
         <input
           ref={searchRef}
           type="search"
-          placeholder="搜索题目、标签或模块…"
+          placeholder="搜索题目、标签、模块或笔记…"
           value={search}
-          onChange={(e) => setSearch(e.target.value)}
+          onChange={(e) => handleSearchChange(e.target.value)}
           className="input-base"
           style={{
             paddingLeft: 36,
@@ -911,7 +1646,7 @@ export default function QuestionList() {
           {search ? (
             <button
               type="button"
-              onClick={() => setSearch('')}
+              onClick={() => handleSearchChange('')}
               style={{
                 color: 'var(--text-3)',
                 background: 'none',
@@ -953,6 +1688,72 @@ export default function QuestionList() {
             marginBottom: 14,
           }}
         >
+          {starredOnly && (
+            <button
+              type="button"
+              onClick={toggleStarredOnly}
+              style={{
+                display: 'flex',
+                alignItems: 'center',
+                gap: 4,
+                padding: '3px 10px',
+                borderRadius: 99,
+                fontSize: 12,
+                fontWeight: 500,
+                background: 'rgba(245,158,11,0.1)',
+                color: '#b45309',
+                border: '1px solid rgba(245,158,11,0.22)',
+                cursor: 'pointer',
+                transition: 'all 0.12s',
+              }}
+            >
+              重点题
+              <svg
+                width="9"
+                height="9"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                strokeWidth="3"
+              >
+                <line x1="18" y1="6" x2="6" y2="18" />
+                <line x1="6" y1="6" x2="18" y2="18" />
+              </svg>
+            </button>
+          )}
+          {notesOnly && (
+            <button
+              type="button"
+              onClick={toggleNotesOnly}
+              style={{
+                display: 'flex',
+                alignItems: 'center',
+                gap: 4,
+                padding: '3px 10px',
+                borderRadius: 99,
+                fontSize: 12,
+                fontWeight: 500,
+                background: 'rgba(99,102,241,0.08)',
+                color: 'var(--primary)',
+                border: '1px solid rgba(var(--primary-rgb), 0.18)',
+                cursor: 'pointer',
+                transition: 'all 0.12s',
+              }}
+            >
+              有笔记
+              <svg
+                width="9"
+                height="9"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                strokeWidth="3"
+              >
+                <line x1="18" y1="6" x2="6" y2="18" />
+                <line x1="6" y1="6" x2="18" y2="18" />
+              </svg>
+            </button>
+          )}
           {selectedModules.map((m) => (
             <button
               type="button"
@@ -1060,7 +1861,7 @@ export default function QuestionList() {
           {debouncedSearch && (
             <button
               type="button"
-              onClick={() => setSearch('')}
+              onClick={() => handleSearchChange('')}
               style={{
                 display: 'flex',
                 alignItems: 'center',
@@ -1108,9 +1909,15 @@ export default function QuestionList() {
             selectedModules={selectedModules}
             selectedDifficulties={selectedDifficulties}
             selectedStatuses={selectedStatuses}
+            starredOnly={starredOnly}
+            notesOnly={notesOnly}
+            starredCount={starredQuestionCount}
+            noteCount={notedQuestionCount}
             onModuleToggle={toggleModule}
             onDifficultyToggle={toggleDifficulty}
             onStatusToggle={toggleStatus}
+            onStarredOnlyToggle={toggleStarredOnly}
+            onNotesOnlyToggle={toggleNotesOnly}
             onClear={clearFilters}
             totalFiltered={filteredQuestions.length}
             totalAll={allQuestions.length}
@@ -1182,9 +1989,15 @@ export default function QuestionList() {
                   selectedModules={selectedModules}
                   selectedDifficulties={selectedDifficulties}
                   selectedStatuses={selectedStatuses}
+                  starredOnly={starredOnly}
+                  notesOnly={notesOnly}
+                  starredCount={starredQuestionCount}
+                  noteCount={notedQuestionCount}
                   onModuleToggle={toggleModule}
                   onDifficultyToggle={toggleDifficulty}
                   onStatusToggle={toggleStatus}
+                  onStarredOnlyToggle={toggleStarredOnly}
+                  onNotesOnlyToggle={toggleNotesOnly}
                   onClear={clearFilters}
                   totalFiltered={filteredQuestions.length}
                   totalAll={allQuestions.length}
@@ -1202,10 +2015,8 @@ export default function QuestionList() {
           ) : filteredQuestions.length === 0 ? (
             <div className="card">
               <EmptyState
-                title={hasFilters ? '没有匹配的题目' : '题库为空'}
-                description={
-                  hasFilters ? '试试调整筛选条件或清除搜索词' : '请前往「导入题目」页面加载题库'
-                }
+                title={emptyStateTitle}
+                description={emptyStateDescription}
                 action={
                   hasFilters ? (
                     <Button variant="secondary" size="sm" onClick={clearFilters}>
@@ -1224,7 +2035,16 @@ export default function QuestionList() {
           ) : (
             <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
               {pagedQuestions.map((q, i) => (
-                <QuestionCard key={q.id} question={q} status={getStatus(q.id)} index={i} />
+                <QuestionCard
+                  key={q.id}
+                  question={q}
+                  status={getStatus(q.id)}
+                  index={i}
+                  starred={starredIds.has(q.id)}
+                  hasNote={noteIds.has(q.id)}
+                  noteSearchMatched={noteSearchMatchedIds.has(q.id)}
+                  noteSnippet={noteSearchSnippets.get(q.id)}
+                />
               ))}
 
               {/* Infinite scroll loader */}
@@ -1285,6 +2105,17 @@ export default function QuestionList() {
 				@media (max-width: 768px) {
 					.ql-sidebar { display: none !important; }
 					.mobile-filter-btn { display: flex !important; }
+				}
+				.question-list-start-count {
+					font-variant-numeric: tabular-nums;
+					opacity: 0.85;
+				}
+				@media (max-width: 480px) {
+					.question-list-start-btn {
+						padding-left: 8px !important;
+						padding-right: 8px !important;
+					}
+					.question-list-start-count { display: none; }
 				}
 			`}</style>
     </div>

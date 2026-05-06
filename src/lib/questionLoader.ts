@@ -1,5 +1,7 @@
-import { validateQuestions } from '@/data/schema'
+import { normalizeQuestionsForImport, validateQuestions } from '../data/schema'
+import type { Question } from '../types'
 import {
+  addCustomSource,
   bulkPutQuestions,
   getAllQuestions,
   getLoadedModules,
@@ -9,8 +11,7 @@ import {
   markModuleLoaded,
   registerModulesInCategory,
   setMeta,
-} from '@/lib/db'
-import type { Question } from '@/types'
+} from './db'
 
 // ─── Built-in category → module files registry ────────────────────────────────
 //
@@ -70,6 +71,7 @@ export const BUILTIN_CATEGORIES: readonly BuiltinCategory[] = [
 
 /** Flat list of every built-in file path across all categories (for legacy compat). */
 export const BUILTIN_MODULE_FILES: readonly string[] = BUILTIN_CATEGORIES.flatMap((c) => c.files)
+export const BUILTIN_QUESTIONS_VERSION = '0.11.0'
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -182,8 +184,29 @@ export async function loadAllBuiltinModules(
 
 // ─── Load all built-in modules in parallel (faster initial load) ──────────────
 
-export async function loadAllBuiltinModulesParallel(): Promise<LoadResult[]> {
-  return Promise.all(BUILTIN_MODULE_FILES.map((f) => loadModuleFile(f)))
+export async function loadAllBuiltinModulesParallel(force = false): Promise<LoadResult[]> {
+  const results = await Promise.all(BUILTIN_MODULE_FILES.map((f) => loadModuleFile(f, force)))
+  const hasLoadFailure = results.some((result) =>
+    result.errors.some((error) => error.index === -1 && result.loaded === 0),
+  )
+  if (!hasLoadFailure) {
+    const loadedModules = new Set(await getLoadedModules())
+    for (const file of BUILTIN_MODULE_FILES) {
+      loadedModules.add(file)
+    }
+    await setMeta(META_KEYS.LOADED_MODULES, [...loadedModules])
+    await setMeta(META_KEYS.BUILTIN_QUESTIONS_VERSION, BUILTIN_QUESTIONS_VERSION)
+  }
+  return results
+}
+
+export async function refreshBuiltinQuestionsIfNeeded(): Promise<boolean> {
+  const current = await getMeta<string>(META_KEYS.BUILTIN_QUESTIONS_VERSION)
+  if (current === BUILTIN_QUESTIONS_VERSION) return false
+
+  await loadAllBuiltinModulesParallel(true)
+  await invalidateDailyCache()
+  return true
 }
 
 // ─── Import from raw JSON / parsed object (user custom import) ───────────────
@@ -201,7 +224,7 @@ export async function importCustomQuestions(
   categoryName?: string,
 ): Promise<CustomImportResult> {
   const warnings: string[] = []
-  const { valid, errors } = validateQuestions(data)
+  const { valid, errors } = validateQuestions(normalizeQuestionsForImport(data))
 
   if (valid.length === 0) {
     return { source: sourceName, loaded: 0, errors, warnings }
@@ -228,7 +251,10 @@ export async function importCustomQuestions(
   if (stamped.length > 0) {
     const uniqueModules = [...new Set(stamped.map((q) => q.module))]
     const resolvedCategory = categoryName?.trim() || _deriveCategory(sourceName)
-    await registerModulesInCategory(resolvedCategory, uniqueModules)
+    await Promise.all([
+      registerModulesInCategory(resolvedCategory, uniqueModules),
+      addCustomSource(sourceName),
+    ])
   }
 
   return { source: sourceName, loaded: stamped.length, errors, warnings }

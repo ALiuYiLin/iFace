@@ -147,7 +147,7 @@
     "id": "css-017",
     "module": "CSS",
     "difficulty": 2,
-    "question": "什么是重排（Reflow）和重绘（Repaint）？如何减少它们？",
+    "question": "CSS 属性变化如何触发 Layout、Paint 和 Composite？如何减少重排重绘？",
     "answer": "## 重排和重绘\n\n### 重排（Reflow / Layout）\n元素的几何属性（位置/尺寸）发生变化，浏览器需重新计算布局。**代价最大**。\n\n触发重排的操作：\n```js\n// 修改几何属性\nel.style.width = '200px';\nel.style.margin = '10px';\nel.style.display = 'none';\n\n// 读取布局信息（强制同步布局）\nconst width = el.offsetWidth;  // 触发重排！\nconst rect = el.getBoundingClientRect();\n```\n\n### 重绘（Repaint）\n元素外观变化但不影响布局（颜色、背景、visibility）。\n```js\nel.style.color = 'red';        // 重绘\nel.style.backgroundColor = '#f00'; // 重绘\nel.style.visibility = 'hidden'; // 重绘（不是 display: none）\n```\n\n### 优化策略\n```js\n// 1. 批量操作 DOM\nconst fragment = document.createDocumentFragment();\nfor (let i = 0; i < 100; i++) {\n  const li = document.createElement('li');\n  fragment.appendChild(li);\n}\nul.appendChild(fragment); // 只触发一次重排\n\n// 2. 避免频繁读写（布局抖动）\n// 坏：读写交替，每次读都触发强制重排\nfor (let i = 0; i < 100; i++) {\n  el.style.left = el.offsetLeft + 1 + 'px';\n}\n\n// 好：先读后写\nconst left = el.offsetLeft;\nfor (let i = 0; i < 100; i++) {\n  el.style.left = left + i + 'px';\n}\n\n// 3. 使用 transform/opacity 代替 top/left\n// transform 和 opacity 只触发合成，不触发重排重绘\nel.style.transform = 'translateX(100px)'; // 最优\n\n// 4. 使用 will-change 提升为合成层\n.animated { will-change: transform; }\n```",
     "tags": ["重排", "重绘", "性能优化", "CSS"],
     "source": "高频"

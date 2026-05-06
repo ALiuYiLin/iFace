@@ -265,7 +265,7 @@
     "module": "内存与GC",
     "difficulty": 3,
     "question": "如何系统性地对一个 Go 服务进行内存优化？请给出完整的排查与优化方法论。",
-    "answer": "**内存优化方法论：四步循环**\n\n```iFace/tmp/memory.md#L1-1\n// 总体流程：测量 → 定位 → 优化 → 验证\n```",
+    "answer": "**内存优化方法论：测量 → 定位 → 优化 → 验证。** 不要先凭经验改代码，先用指标确认问题类型，再用 profile 找到主要分配点。\n\n**1. 建立基线**\n- 先看 `RSS`、`HeapAlloc`、`HeapInuse`、`NumGC`、GC pause、goroutine 数量。\n- 区分是持续增长、周期性尖峰，还是 GC 后仍无法下降。\n- 记录压测 QPS、请求大小、数据量，否则优化前后不可比较。\n\n**2. 定位来源**\n```iFace/tmp/memory.md#L1-1\n# 当前存活对象：定位谁占着内存不释放\ngo tool pprof http://localhost:6060/debug/pprof/heap\n\n# 历史累计分配：定位热路径频繁分配\ngo tool pprof -alloc_space http://localhost:6060/debug/pprof/heap\n\n# goroutine 泄漏也会表现为内存上涨\ngo tool pprof http://localhost:6060/debug/pprof/goroutine\n```\n\n**3. 常见优化方向**\n- 减少热路径分配：复用 buffer、预分配 slice/map 容量、避免不必要的 `[]byte`/`string` 转换。\n- 释放大对象引用：避免小 slice 持有大底层数组，及时清理缓存和全局引用。\n- 控制 goroutine 生命周期：用 `context`、超时、关闭 channel，防止阻塞泄漏。\n- 调整 GC：结合 `GOGC` 和 `debug.SetMemoryLimit`，在延迟和内存之间取平衡。\n\n**4. 验证回归**\n优化后重新跑同样流量，比较 `allocs/op`、`B/op`、P95/P99 延迟、GC 次数和峰值内存。只有在业务指标没有退化时，才算真正完成优化。",
     "tags": ["GC", "内存", "pprof"],
     "source": "高频"
   }

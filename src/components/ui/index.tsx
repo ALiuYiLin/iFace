@@ -93,12 +93,21 @@ export function Button({
   className = '',
   disabled,
   children,
+  style: styleProp,
+  onMouseEnter,
+  onMouseLeave,
   ...props
 }: ButtonProps) {
   const sizeClass = {
     sm: 'text-xs px-3 py-1.5 h-7',
     md: 'text-sm px-4 py-2 h-9',
     lg: 'text-sm px-5 py-2.5 h-11',
+  }[size]
+
+  const sizeStyle: React.CSSProperties = {
+    sm: { fontSize: 12, height: 28, padding: '6px 12px' },
+    md: { fontSize: 14, height: 36, padding: '8px 16px' },
+    lg: { fontSize: 14, height: 44, padding: '10px 20px' },
   }[size]
 
   // Use inline styles for CSS-variable-based colors so Tailwind scan is not needed
@@ -142,7 +151,13 @@ export function Button({
     <button
       disabled={disabled || loading}
       className={`inline-flex items-center justify-center gap-2 font-medium rounded-xl border transition-all duration-150 cursor-pointer select-none focus-visible:outline-2 focus-visible:outline-offset-2 active:scale-[0.97] disabled:opacity-50 disabled:pointer-events-none btn-${variant} ${sizeClass} ${fullWidth ? 'w-full' : ''} ${className}`}
-      style={variantStyle}
+      style={{
+        ...variantStyle,
+        ...sizeStyle,
+        width: fullWidth ? '100%' : undefined,
+        whiteSpace: 'nowrap',
+        ...styleProp,
+      }}
       onMouseEnter={(e) => {
         const el = e.currentTarget
         if (variant === 'primary') {
@@ -162,12 +177,12 @@ export function Button({
           el.style.borderColor = '#10b981'
           el.style.color = 'white'
         }
-        props.onMouseEnter?.(e)
+        onMouseEnter?.(e)
       }}
       onMouseLeave={(e) => {
         const el = e.currentTarget
-        Object.assign(el.style, variantStyle)
-        props.onMouseLeave?.(e)
+        Object.assign(el.style, variantStyle, styleProp)
+        onMouseLeave?.(e)
       }}
       {...props}
     >

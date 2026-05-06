@@ -3,6 +3,7 @@ import { useNavigate, useSearchParams } from 'react-router-dom'
 import { Button, EmptyState, Skeleton } from '@/components/ui'
 import { useQuestions } from '@/hooks/useQuestions'
 import { type CategoryMap, getCategoryMap } from '@/lib/db'
+import { createPracticeSessionPath } from '@/lib/practiceSession'
 import { useStudyStore } from '@/store/useStudyStore'
 import {
   DIFFICULTY_LABELS,
@@ -648,8 +649,7 @@ export default function Practice() {
       }
     }
 
-    const firstId = ids[0]
-    navigate(`/questions/${firstId}?ids=${ids.join(',')}`)
+    navigate(createPracticeSessionPath(ids[0], ids))
   }, [filteredQuestions, isShuffled, navigate])
 
   // ── Loading ──

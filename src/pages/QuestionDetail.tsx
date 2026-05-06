@@ -1,13 +1,36 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { Link, useNavigate, useParams, useSearchParams } from 'react-router-dom'
 import { SettingsDrawer } from '@/components/layout/SettingsDrawer'
-import { Button, Kbd, Skeleton, Spinner } from '@/components/ui'
+import { Badge, Button, Kbd, Skeleton, Spinner } from '@/components/ui'
 import { AIPanelWithStyles } from '@/components/ui/AIPanel'
 import { MarkdownRenderer } from '@/components/ui/MarkdownRenderer'
+import { SpeechInputButton } from '@/components/ui/SpeechInputButton'
 import { useQuestion, useQuestions } from '@/hooks/useQuestions'
-import { useAIStore } from '@/store/useAIStore'
+import { useSpeechRecognition } from '@/hooks/useSpeechRecognition'
+import {
+  appendQuestionNoteContent,
+  getQuestionFlag,
+  getQuestionNote,
+  putQuestionNote,
+  setQuestionStarred,
+} from '@/lib/db'
+import { buildReviewNoteMarkdown, formatReviewNoteTime } from '@/lib/feedbackNote'
+import { createPracticeSessionPath, readPracticeSession } from '@/lib/practiceSession'
+import {
+  buildAnswerFeedbackContext,
+  buildAnswerFeedbackSystemSuffix,
+  useAIStore,
+} from '@/store/useAIStore'
 import { clearSessionReview, useStudyStore } from '@/store/useStudyStore'
-import { DIFFICULTY_LABELS, DIFFICULTY_STYLES, type StudyStatus } from '@/types'
+import {
+  DIFFICULTY_LABELS,
+  DIFFICULTY_STYLES,
+  type Question,
+  type QuestionNote,
+  STATUS_LABELS,
+  STATUS_STYLES,
+  type StudyStatus,
+} from '@/types'
 
 // ─── Status Action Button ─────────────────────────────────────────────────────
 
@@ -239,6 +262,10 @@ function ShortcutHints({ answerVisible }: { answerVisible: boolean }) {
         <Kbd>←</Kbd>
         <span>上一题</span>
       </span>
+      <span style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
+        <Kbd>N</Kbd>
+        <span>笔记</span>
+      </span>
     </div>
   )
 }
@@ -310,6 +337,320 @@ function StreakCelebration({ streak, onDone }: StreakCelebrationProps) {
   )
 }
 
+// ─── Session Completion ──────────────────────────────────────────────────────
+
+interface SessionCompletionCardProps {
+  mastered: number
+  review: number
+  unlearned: number
+  total: number
+  retryCount: number
+  onRetry: () => void
+  onBackToPractice: () => void
+  onDashboard: () => void
+}
+
+function SessionCompletionCard({
+  mastered,
+  review,
+  unlearned,
+  total,
+  retryCount,
+  onRetry,
+  onBackToPractice,
+  onDashboard,
+}: SessionCompletionCardProps) {
+  const masteredPercent = total > 0 ? Math.round((mastered / total) * 100) : 0
+  const hasRetry = retryCount > 0
+
+  return (
+    <div
+      className="card animate-scale-in"
+      style={{
+        padding: 20,
+        display: 'flex',
+        flexDirection: 'column',
+        gap: 16,
+        borderColor: mastered === total ? 'rgba(16,185,129,0.22)' : 'var(--border-subtle)',
+      }}
+    >
+      <div
+        style={{
+          display: 'flex',
+          alignItems: 'flex-start',
+          justifyContent: 'space-between',
+          gap: 12,
+        }}
+      >
+        <div style={{ minWidth: 0 }}>
+          <p
+            style={{
+              fontSize: 11,
+              fontWeight: 600,
+              color: 'var(--text-3)',
+              textTransform: 'uppercase',
+              letterSpacing: '0.06em',
+              marginBottom: 5,
+            }}
+          >
+            本轮完成
+          </p>
+          <h2 style={{ fontSize: 18, fontWeight: 700, color: 'var(--text)', lineHeight: 1.35 }}>
+            {hasRetry ? '还有可巩固的题目' : '这一轮全部掌握'}
+          </h2>
+          <p style={{ fontSize: 13, color: 'var(--text-2)', marginTop: 5, lineHeight: 1.6 }}>
+            {hasRetry
+              ? `建议立即重练 ${retryCount} 道未完全掌握的题，趁记忆还热。`
+              : '可以结束本轮，或者回到练习配置继续挑战新的题目。'}
+          </p>
+        </div>
+        <div
+          style={{
+            flexShrink: 0,
+            minWidth: 58,
+            height: 58,
+            borderRadius: 14,
+            background: mastered === total ? 'var(--success-light)' : 'var(--primary-light)',
+            color: mastered === total ? 'var(--success)' : 'var(--primary)',
+            display: 'flex',
+            flexDirection: 'column',
+            alignItems: 'center',
+            justifyContent: 'center',
+          }}
+        >
+          <span style={{ fontSize: 18, fontWeight: 800, lineHeight: 1 }}>{masteredPercent}%</span>
+          <span style={{ fontSize: 10, marginTop: 3 }}>掌握</span>
+        </div>
+      </div>
+
+      <div
+        className="session-completion-stats"
+        style={{
+          display: 'grid',
+          gridTemplateColumns: 'repeat(3, 1fr)',
+          gap: 8,
+        }}
+      >
+        {[
+          { label: '已掌握', value: mastered, color: 'var(--success)', bg: 'var(--success-light)' },
+          { label: '待复习', value: review, color: 'var(--warning)', bg: 'var(--warning-light)' },
+          { label: '未学习', value: unlearned, color: 'var(--text-3)', bg: 'var(--surface-3)' },
+        ].map((item) => (
+          <div
+            key={item.label}
+            style={{
+              padding: '11px 12px',
+              borderRadius: 10,
+              background: 'var(--surface-2)',
+              border: '1px solid var(--border-subtle)',
+            }}
+          >
+            <p style={{ fontSize: 11, color: 'var(--text-3)', marginBottom: 3 }}>{item.label}</p>
+            <p
+              style={{
+                fontSize: 18,
+                fontWeight: 700,
+                color: item.color,
+                fontVariantNumeric: 'tabular-nums',
+                lineHeight: 1.2,
+              }}
+            >
+              {item.value}
+            </p>
+            <div
+              style={{
+                width: 20,
+                height: 3,
+                borderRadius: 99,
+                background: item.bg,
+                marginTop: 7,
+              }}
+            />
+          </div>
+        ))}
+      </div>
+
+      <div
+        className="session-completion-actions"
+        style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}
+      >
+        <Button
+          variant="primary"
+          size="sm"
+          onClick={hasRetry ? onRetry : onBackToPractice}
+          icon={
+            <svg
+              width="13"
+              height="13"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              strokeWidth="2.2"
+              strokeLinecap="round"
+              strokeLinejoin="round"
+            >
+              <polyline points="23 4 23 10 17 10" />
+              <path d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10" />
+            </svg>
+          }
+        >
+          {hasRetry ? `重练 ${retryCount} 题` : '继续练习'}
+        </Button>
+        {hasRetry && (
+          <Button variant="secondary" size="sm" onClick={onBackToPractice}>
+            调整练习
+          </Button>
+        )}
+        <Button variant="ghost" size="sm" onClick={onDashboard}>
+          回概览
+        </Button>
+      </div>
+    </div>
+  )
+}
+
+// ─── Related Practice ────────────────────────────────────────────────────────
+
+interface RelatedPracticeItem {
+  question: Question
+  status: StudyStatus
+  matchedTags: string[]
+}
+
+interface RelatedPracticeCardProps {
+  items: RelatedPracticeItem[]
+  onStartPractice: () => void
+}
+
+function RelatedPracticeCard({ items, onStartPractice }: RelatedPracticeCardProps) {
+  if (items.length === 0) return null
+
+  return (
+    <div
+      className="card animate-fade-in"
+      style={{ padding: 18, display: 'flex', flexDirection: 'column', gap: 14 }}
+    >
+      <div
+        className="related-practice-header"
+        style={{
+          display: 'flex',
+          alignItems: 'flex-start',
+          justifyContent: 'space-between',
+          gap: 12,
+        }}
+      >
+        <div style={{ minWidth: 0 }}>
+          <p
+            style={{
+              fontSize: 11,
+              fontWeight: 600,
+              color: 'var(--text-3)',
+              textTransform: 'uppercase',
+              letterSpacing: '0.06em',
+              marginBottom: 5,
+            }}
+          >
+            同主题加练
+          </p>
+          <h2 style={{ fontSize: 17, fontWeight: 700, color: 'var(--text)', lineHeight: 1.35 }}>
+            继续巩固相近考点
+          </h2>
+          <p style={{ fontSize: 13, color: 'var(--text-2)', marginTop: 5, lineHeight: 1.6 }}>
+            已按标签、模块和掌握状态挑出最相关的题目。
+          </p>
+        </div>
+        <Button
+          variant="secondary"
+          size="sm"
+          onClick={onStartPractice}
+          icon={
+            <svg
+              width="13"
+              height="13"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              strokeWidth="2.4"
+              strokeLinecap="round"
+              strokeLinejoin="round"
+            >
+              <polygon points="5 3 19 12 5 21 5 3" />
+            </svg>
+          }
+        >
+          练这 {items.length} 题
+        </Button>
+      </div>
+
+      <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+        {items.slice(0, 3).map((item) => {
+          const difficultyStyle = DIFFICULTY_STYLES[item.question.difficulty]
+          const statusStyle = STATUS_STYLES[item.status]
+          const detailParts = [
+            item.question.module,
+            item.matchedTags.length > 0 ? item.matchedTags.slice(0, 2).join(' / ') : null,
+          ].filter(Boolean)
+
+          return (
+            <Link
+              key={item.question.id}
+              to={`/questions/${item.question.id}`}
+              className="related-practice-row"
+              style={{
+                display: 'grid',
+                gridTemplateColumns: 'minmax(0, 1fr) auto',
+                gap: 12,
+                alignItems: 'center',
+                padding: '11px 12px',
+                borderRadius: 10,
+                border: '1px solid var(--border-subtle)',
+                background: 'var(--surface-2)',
+                textDecoration: 'none',
+                color: 'inherit',
+              }}
+            >
+              <div style={{ minWidth: 0 }}>
+                <p
+                  style={{
+                    fontSize: 13,
+                    fontWeight: 600,
+                    color: 'var(--text)',
+                    lineHeight: 1.45,
+                    marginBottom: 5,
+                  }}
+                >
+                  {item.question.question}
+                </p>
+                <p
+                  style={{
+                    fontSize: 11,
+                    color: 'var(--text-3)',
+                    overflow: 'hidden',
+                    textOverflow: 'ellipsis',
+                    whiteSpace: 'nowrap',
+                  }}
+                >
+                  {detailParts.join(' · ')}
+                </p>
+              </div>
+              <div
+                style={{ display: 'flex', gap: 6, flexWrap: 'wrap', justifyContent: 'flex-end' }}
+              >
+                <Badge size="sm" variant="ghost" style={difficultyStyle}>
+                  {DIFFICULTY_LABELS[item.question.difficulty]}
+                </Badge>
+                <Badge size="sm" variant="ghost" style={statusStyle}>
+                  {STATUS_LABELS[item.status]}
+                </Badge>
+              </div>
+            </Link>
+          )
+        })}
+      </div>
+    </div>
+  )
+}
+
 // ─── My Answer Input ("我的作答") ─────────────────────────────────────────────
 // Design principle: 先作答，再看答案 — shown ABOVE the answer card.
 // Always starts open. Collapses only if user explicitly closes it.
@@ -318,12 +659,61 @@ function StreakCelebration({ streak, onDone }: StreakCelebrationProps) {
 //   answer-alongside → shown inside answer card (side-by-side)
 //   memory-only     → hidden entirely
 
+const MY_ANSWER_DRAFT_PREFIX = 'iface_my_answer_draft_'
+
+function getMyAnswerDraftKey(questionId: string): string {
+  return `${MY_ANSWER_DRAFT_PREFIX}${questionId}`
+}
+
+function loadMyAnswerDraft(questionId: string): string {
+  if (!questionId) return ''
+
+  try {
+    return localStorage.getItem(getMyAnswerDraftKey(questionId)) ?? ''
+  } catch {
+    return ''
+  }
+}
+
+function saveMyAnswerDraft(questionId: string, text: string): void {
+  if (!questionId) return
+
+  try {
+    const key = getMyAnswerDraftKey(questionId)
+    if (text.trim()) {
+      localStorage.setItem(key, text)
+    } else {
+      localStorage.removeItem(key)
+    }
+  } catch {
+    // ignore storage failures
+  }
+}
+
+function isEditableTarget(target: EventTarget | null): boolean {
+  if (!(target instanceof HTMLElement)) return false
+  return (
+    target.isContentEditable ||
+    target.tagName === 'INPUT' ||
+    target.tagName === 'TEXTAREA' ||
+    target.tagName === 'SELECT'
+  )
+}
+
+function appendSpeechTranscript(current: string, transcript: string): string {
+  const next = transcript.trim()
+  if (!next) return current
+  if (!current.trim()) return next
+  return `${current.trimEnd()} ${next}`
+}
+
 interface MyAnswerInputProps {
   questionId: string
   questionText: string
   answerText: string
   onOpenAIPanel: () => void
   isAiEnabled: boolean
+  onNoteSaved?: () => void
   /** When true the component is in "compact / inside answer card" mode */
   compact?: boolean
 }
@@ -334,73 +724,90 @@ function MyAnswerInput({
   answerText,
   onOpenAIPanel,
   isAiEnabled,
+  onNoteSaved,
   compact = false,
 }: MyAnswerInputProps) {
   const { sendMessage, streaming, streamingQuestionId } = useAIStore()
 
   // Always start expanded — no collapsed gate
   const [collapsed, setCollapsed] = useState(false)
-  const [text, setText] = useState('')
+  const [text, setText] = useState(() => loadMyAnswerDraft(questionId))
   const [feedback, setFeedback] = useState<string | null>(null)
   const [streamingFeedback, setStreamingFeedback] = useState('')
   const [error, setError] = useState<string | null>(null)
+  const [savingNote, setSavingNote] = useState(false)
+  const [noteSaved, setNoteSaved] = useState(false)
   const textareaRef = useRef<HTMLTextAreaElement>(null)
 
   const isStreaming = streaming && streamingQuestionId === `${questionId}_selfcheck`
 
-  // Reset when question changes — always open again
+  const handleSpeechTranscript = useCallback((transcript: string) => {
+    setText((prev) => appendSpeechTranscript(prev, transcript))
+    window.setTimeout(() => textareaRef.current?.focus(), 0)
+  }, [])
+
+  const speech = useSpeechRecognition({
+    lang: 'zh-CN',
+    onFinalTranscript: handleSpeechTranscript,
+    onError: setError,
+  })
+
+  // Reset when question changes — always open again, but restore that question's draft.
   useEffect(() => {
+    speech.stop()
     setCollapsed(false)
-    setText('')
+    setText(loadMyAnswerDraft(questionId))
     setFeedback(null)
     setStreamingFeedback('')
     setError(null)
-  }, [])
+    setSavingNote(false)
+    setNoteSaved(false)
+  }, [questionId, speech.stop])
 
-  // Auto-focus textarea on mount / question change
   useEffect(() => {
-    if (!collapsed && !feedback) {
+    if (feedback || streamingFeedback) return
+    saveMyAnswerDraft(questionId, text)
+  }, [feedback, questionId, streamingFeedback, text])
+
+  // Auto-focus only in answer-first mode. In answer-alongside mode the input
+  // mounts after pressing Space, so focusing it would unexpectedly scroll down.
+  useEffect(() => {
+    if (!compact && !collapsed && !feedback) {
       setTimeout(() => textareaRef.current?.focus(), 80)
     }
-  }, [collapsed, feedback])
+  }, [collapsed, compact, feedback])
 
   const handleSubmit = useCallback(async () => {
     if (!text.trim() || isStreaming) return
 
+    speech.stop()
     setError(null)
     setStreamingFeedback('')
 
-    const systemPrompt = `你是一位严格但友善的前端面试教练。用户在看到参考答案之前，凭记忆写下了自己的作答，请你：
-1. 先肯定用户答对/答到位的部分（简短，1-2句）
-2. 指出遗漏或不够准确的关键点（重点，最多3条）
-3. 给出1个最重要的补充建议
-
-风格：直接、简练、不废话，总字数控制在200字以内。用中文回答。`
-
-    const contextMessages = [
-      {
-        role: 'user' as const,
-        content: `题目：${questionText}\n\n参考答案：${answerText}\n\n我的理解：${text.trim()}`,
-      },
-    ]
+    const contextMessages = buildAnswerFeedbackContext({
+      questionText,
+      referenceAnswer: answerText,
+      userAnswer: text.trim(),
+    })
 
     // Use a dedicated sub-id so it doesn't pollute the main AI chat
     await sendMessage(
       `${questionId}_selfcheck`,
-      '请根据以上内容给我反馈',
+      '请批改我的作答，并给出一版更适合面试口述的修正版。',
       contextMessages,
-      `\n\n---\n${systemPrompt}`,
+      buildAnswerFeedbackSystemSuffix(),
       (chunk) => setStreamingFeedback((prev) => prev + chunk),
       (full) => {
         setFeedback(full)
         setStreamingFeedback('')
+        saveMyAnswerDraft(questionId, '')
       },
       (err) => {
         setError(err)
         setStreamingFeedback('')
       },
     )
-  }, [text, isStreaming, questionId, questionText, answerText, sendMessage])
+  }, [text, isStreaming, speech.stop, questionId, questionText, answerText, sendMessage])
 
   const handleKeyDown = useCallback(
     (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
@@ -412,13 +819,45 @@ function MyAnswerInput({
     [handleSubmit],
   )
 
+  const handleCollapse = useCallback(() => {
+    speech.stop()
+    setCollapsed(true)
+  }, [speech.stop])
+
   const handleReset = useCallback(() => {
+    speech.stop()
     setFeedback(null)
     setStreamingFeedback('')
     setText('')
     setError(null)
+    setSavingNote(false)
+    setNoteSaved(false)
+    saveMyAnswerDraft(questionId, '')
     setTimeout(() => textareaRef.current?.focus(), 60)
-  }, [])
+  }, [questionId, speech.stop])
+
+  const handleSaveFeedbackToNote = useCallback(async () => {
+    if (!feedback || savingNote || noteSaved) return
+
+    setSavingNote(true)
+    setError(null)
+    try {
+      await appendQuestionNoteContent(
+        questionId,
+        buildReviewNoteMarkdown({
+          questionText,
+          userAnswer: text,
+          feedback,
+        }),
+      )
+      setNoteSaved(true)
+      onNoteSaved?.()
+    } catch (err) {
+      setError(`保存笔记失败：${err instanceof Error ? err.message : String(err)}`)
+    } finally {
+      setSavingNote(false)
+    }
+  }, [feedback, noteSaved, onNoteSaved, questionId, questionText, savingNote, text])
 
   const displayFeedback = feedback ?? (streamingFeedback || null)
 
@@ -534,7 +973,7 @@ function MyAnswerInput({
         </span>
         <button
           type="button"
-          onClick={() => setCollapsed(true)}
+          onClick={handleCollapse}
           style={{
             background: 'none',
             border: 'none',
@@ -610,47 +1049,82 @@ function MyAnswerInput({
                 display: 'flex',
                 alignItems: 'center',
                 justifyContent: 'space-between',
+                gap: 10,
                 padding: '6px 10px',
                 borderTop: '1px solid var(--border-subtle)',
                 background: 'var(--surface-2)',
               }}
             >
-              <span style={{ fontSize: 11, color: 'var(--text-3)' }}>
-                {isAiEnabled ? (
-                  <>⌘+Enter 提交作答</>
-                ) : (
-                  <button
-                    type="button"
-                    onClick={onOpenAIPanel}
+              <div
+                style={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: 8,
+                  minWidth: 0,
+                  flex: 1,
+                  flexWrap: 'wrap',
+                }}
+              >
+                <SpeechInputButton
+                  supported={speech.supported}
+                  listening={speech.listening}
+                  disabled={isStreaming}
+                  onToggle={speech.toggle}
+                />
+                {speech.interimTranscript ? (
+                  <span
+                    title={speech.interimTranscript}
                     style={{
-                      background: 'none',
-                      border: 'none',
-                      color: 'var(--primary)',
-                      cursor: 'pointer',
+                      minWidth: 0,
+                      maxWidth: compact ? 160 : 260,
+                      overflow: 'hidden',
+                      textOverflow: 'ellipsis',
+                      whiteSpace: 'nowrap',
                       fontSize: 11,
-                      padding: 0,
-                      display: 'flex',
-                      alignItems: 'center',
-                      gap: 4,
+                      color: 'var(--primary)',
                     }}
                   >
-                    <svg
-                      width="11"
-                      height="11"
-                      viewBox="0 0 24 24"
-                      fill="none"
-                      stroke="currentColor"
-                      strokeWidth="2.5"
-                      strokeLinecap="round"
-                      strokeLinejoin="round"
-                    >
-                      <circle cx="12" cy="12" r="3" />
-                      <path d="M12.22 2h-.44a2 2 0 0 0-2 2v.18a2 2 0 0 1-1 1.73l-.43.25a2 2 0 0 1-2 0l-.15-.08a2 2 0 0 0-2.73.73l-.22.38a2 2 0 0 0 .73 2.73l.15.1a2 2 0 0 1 1 1.72v.51a2 2 0 0 1-1 1.74l-.15.09a2 2 0 0 0-.73 2.73l.22.38a2 2 0 0 0 2.73.73l.15-.08a2 2 0 0 1 2 0l.43.25a2 2 0 0 1 1 1.73V20a2 2 0 0 0 2 2h.44a2 2 0 0 0 2-2v-.18a2 2 0 0 1 1-1.73l.43-.25a2 2 0 0 1 2 0l.15.08a2 2 0 0 0 2.73-.73l.22-.39a2 2 0 0 0-.73-2.73l-.15-.08a2 2 0 0 1-1-1.74v-.5a2 2 0 0 1 1-1.74l.15-.09a2 2 0 0 0 .73-2.73l-.22-.38a2 2 0 0 0-2.73-.73l-.15.08a2 2 0 0 1-2 0l-.43-.25a2 2 0 0 1-1-1.73V4a2 2 0 0 0-2-2z" />
-                    </svg>
-                    配置 AI 才能获得反馈
-                  </button>
+                    正在识别：{speech.interimTranscript}
+                  </span>
+                ) : (
+                  <span style={{ fontSize: 11, color: 'var(--text-3)' }}>
+                    {isAiEnabled ? (
+                      <>⌘+Enter 提交作答</>
+                    ) : (
+                      <button
+                        type="button"
+                        onClick={onOpenAIPanel}
+                        style={{
+                          background: 'none',
+                          border: 'none',
+                          color: 'var(--primary)',
+                          cursor: 'pointer',
+                          fontSize: 11,
+                          padding: 0,
+                          display: 'flex',
+                          alignItems: 'center',
+                          gap: 4,
+                        }}
+                      >
+                        <svg
+                          width="11"
+                          height="11"
+                          viewBox="0 0 24 24"
+                          fill="none"
+                          stroke="currentColor"
+                          strokeWidth="2.5"
+                          strokeLinecap="round"
+                          strokeLinejoin="round"
+                        >
+                          <circle cx="12" cy="12" r="3" />
+                          <path d="M12.22 2h-.44a2 2 0 0 0-2 2v.18a2 2 0 0 1-1 1.73l-.43.25a2 2 0 0 1-2 0l-.15-.08a2 2 0 0 0-2.73.73l-.22.38a2 2 0 0 0 .73 2.73l.15.1a2 2 0 0 1 1 1.72v.51a2 2 0 0 1-1 1.74l-.15.09a2 2 0 0 0-.73 2.73l.22.38a2 2 0 0 0 2.73.73l.15-.08a2 2 0 0 1 2 0l.43.25a2 2 0 0 1 1 1.73V20a2 2 0 0 0 2 2h.44a2 2 0 0 0 2-2v-.18a2 2 0 0 1 1-1.73l.43-.25a2 2 0 0 1 2 0l.15.08a2 2 0 0 0 2.73-.73l.22-.39a2 2 0 0 0-.73-2.73l-.15-.08a2 2 0 0 1-1-1.74v-.5a2 2 0 0 1 1-1.74l.15-.09a2 2 0 0 0 .73-2.73l-.22-.38a2 2 0 0 0-2.73-.73l-.15.08a2 2 0 0 1-2 0l-.43-.25a2 2 0 0 1-1-1.73V4a2 2 0 0 0-2-2z" />
+                        </svg>
+                        配置 AI 才能获得反馈
+                      </button>
+                    )}
+                  </span>
                 )}
-              </span>
+              </div>
               <button
                 type="button"
                 onClick={handleSubmit}
@@ -787,8 +1261,62 @@ function MyAnswerInput({
                   borderTop: '1px solid var(--border-subtle)',
                   display: 'flex',
                   gap: 8,
+                  flexWrap: 'wrap',
                 }}
               >
+                <button
+                  type="button"
+                  onClick={handleSaveFeedbackToNote}
+                  disabled={savingNote || noteSaved}
+                  style={{
+                    fontSize: 12,
+                    color: noteSaved ? 'var(--success)' : 'var(--primary)',
+                    background: noteSaved ? 'var(--success-light)' : 'var(--primary-light)',
+                    border: '1px solid',
+                    borderColor: noteSaved
+                      ? 'rgba(16,185,129,0.2)'
+                      : 'rgba(var(--primary-rgb),0.2)',
+                    cursor: savingNote || noteSaved ? 'default' : 'pointer',
+                    padding: '3px 8px',
+                    borderRadius: 6,
+                    transition: 'all 0.15s',
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: 4,
+                    opacity: savingNote ? 0.65 : 1,
+                  }}
+                  onMouseEnter={(e) => {
+                    if (!savingNote && !noteSaved) {
+                      ;(e.currentTarget as HTMLElement).style.borderColor =
+                        'rgba(var(--primary-rgb),0.35)'
+                    }
+                  }}
+                  onMouseLeave={(e) => {
+                    ;(e.currentTarget as HTMLElement).style.borderColor = noteSaved
+                      ? 'rgba(16,185,129,0.2)'
+                      : 'rgba(var(--primary-rgb),0.2)'
+                  }}
+                >
+                  {savingNote ? (
+                    <Spinner size="sm" />
+                  ) : (
+                    <svg
+                      width="11"
+                      height="11"
+                      viewBox="0 0 24 24"
+                      fill="none"
+                      stroke="currentColor"
+                      strokeWidth="2.5"
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                    >
+                      <path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z" />
+                      <polyline points="17 21 17 13 7 13 7 21" />
+                      <polyline points="7 3 7 8 15 8" />
+                    </svg>
+                  )}
+                  {savingNote ? '保存中…' : noteSaved ? '已保存到笔记' : '保存为复盘笔记'}
+                </button>
                 <button
                   type="button"
                   onClick={handleReset}
@@ -892,6 +1420,482 @@ function MyAnswerInput({
   )
 }
 
+// ─── Question Notes ──────────────────────────────────────────────────────────
+
+interface QuestionNotesProps {
+  questionId: string
+  refreshKey: number
+  embedded?: boolean
+  onContentStateChange?: (hasContent: boolean) => void
+}
+
+type NoteSaveStatus = 'idle' | 'saving' | 'saved' | 'error'
+
+function QuestionNotes({
+  questionId,
+  refreshKey,
+  embedded = false,
+  onContentStateChange,
+}: QuestionNotesProps) {
+  const [content, setContent] = useState('')
+  const [createdAt, setCreatedAt] = useState<number | null>(null)
+  const [updatedAt, setUpdatedAt] = useState<number | null>(null)
+  const [loading, setLoading] = useState(true)
+  const [saveStatus, setSaveStatus] = useState<NoteSaveStatus>('idle')
+  const [mode, setMode] = useState<'edit' | 'preview'>('edit')
+
+  const loadedContentRef = useRef('')
+  const saveTimerRef = useRef<number | null>(null)
+  const statusTimerRef = useRef<number | null>(null)
+
+  // biome-ignore lint/correctness/useExhaustiveDependencies: refreshKey intentionally reloads the IndexedDB note after AI feedback is appended.
+  useEffect(() => {
+    let cancelled = false
+
+    if (saveTimerRef.current) window.clearTimeout(saveTimerRef.current)
+    setLoading(true)
+    setSaveStatus('idle')
+
+    getQuestionNote(questionId)
+      .then((note: QuestionNote | undefined) => {
+        if (cancelled) return
+        const nextContent = note?.content ?? ''
+        loadedContentRef.current = nextContent
+        setContent(nextContent)
+        setCreatedAt(note?.createdAt ?? null)
+        setUpdatedAt(note?.updatedAt ?? null)
+        onContentStateChange?.(nextContent.trim().length > 0)
+        setLoading(false)
+      })
+      .catch(() => {
+        if (cancelled) return
+        loadedContentRef.current = ''
+        setContent('')
+        setCreatedAt(null)
+        setUpdatedAt(null)
+        onContentStateChange?.(false)
+        setSaveStatus('error')
+        setLoading(false)
+      })
+
+    return () => {
+      cancelled = true
+    }
+  }, [questionId, refreshKey, onContentStateChange])
+
+  useEffect(() => {
+    return () => {
+      if (saveTimerRef.current) window.clearTimeout(saveTimerRef.current)
+      if (statusTimerRef.current) window.clearTimeout(statusTimerRef.current)
+    }
+  }, [])
+
+  useEffect(() => {
+    if (loading) return
+    if (content === loadedContentRef.current) return
+
+    if (saveTimerRef.current) window.clearTimeout(saveTimerRef.current)
+    if (statusTimerRef.current) window.clearTimeout(statusTimerRef.current)
+
+    setSaveStatus('saving')
+    const nextContent = content
+
+    saveTimerRef.current = window.setTimeout(async () => {
+      const now = Date.now()
+      try {
+        await putQuestionNote({
+          questionId,
+          content: nextContent,
+          createdAt: createdAt ?? now,
+          updatedAt: now,
+        })
+
+        loadedContentRef.current = nextContent
+        if (nextContent.trim()) {
+          setCreatedAt((prev) => prev ?? now)
+          setUpdatedAt(now)
+        } else {
+          setCreatedAt(null)
+          setUpdatedAt(null)
+        }
+        onContentStateChange?.(nextContent.trim().length > 0)
+        setSaveStatus('saved')
+        statusTimerRef.current = window.setTimeout(() => setSaveStatus('idle'), 1600)
+      } catch {
+        setSaveStatus('error')
+      }
+    }, 650)
+
+    return () => {
+      if (saveTimerRef.current) window.clearTimeout(saveTimerRef.current)
+    }
+  }, [content, createdAt, loading, onContentStateChange, questionId])
+
+  const statusText =
+    saveStatus === 'saving'
+      ? '保存中…'
+      : saveStatus === 'saved'
+        ? '已保存'
+        : saveStatus === 'error'
+          ? '保存失败'
+          : updatedAt
+            ? `最后编辑 ${formatReviewNoteTime(updatedAt)}`
+            : '自动保存'
+
+  return (
+    <div
+      className={embedded ? 'animate-fade-in' : 'card animate-fade-in'}
+      style={{
+        padding: embedded ? 0 : 18,
+        display: 'flex',
+        flexDirection: 'column',
+        gap: 12,
+      }}
+    >
+      <div
+        style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8 }}
+      >
+        <div style={{ display: 'flex', alignItems: 'center', gap: 8, minWidth: 0 }}>
+          <span
+            style={{
+              width: 24,
+              height: 24,
+              borderRadius: 7,
+              background: 'var(--primary-light)',
+              color: 'var(--primary)',
+              display: 'inline-flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              flexShrink: 0,
+            }}
+          >
+            <svg
+              width="13"
+              height="13"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              strokeWidth="2.2"
+              strokeLinecap="round"
+              strokeLinejoin="round"
+            >
+              <path d="M4 19.5V5a2 2 0 0 1 2-2h12v18H6a2 2 0 0 1-2-1.5z" />
+              <path d="M8 7h6" />
+              <path d="M8 11h8" />
+            </svg>
+          </span>
+          <div style={{ minWidth: 0 }}>
+            <h2 style={{ fontSize: 13, fontWeight: 600, color: 'var(--text)' }}>题目笔记</h2>
+            <p
+              style={{
+                fontSize: 11,
+                color: saveStatus === 'error' ? 'var(--danger)' : 'var(--text-3)',
+                marginTop: 1,
+              }}
+            >
+              {loading ? '加载中…' : statusText}
+            </p>
+          </div>
+        </div>
+
+        <div
+          style={{
+            display: 'flex',
+            alignItems: 'center',
+            gap: 2,
+            padding: 2,
+            borderRadius: 8,
+            background: 'var(--surface-2)',
+            border: '1px solid var(--border-subtle)',
+            flexShrink: 0,
+          }}
+        >
+          {(['edit', 'preview'] as const).map((item) => {
+            const active = mode === item
+            return (
+              <button
+                key={item}
+                type="button"
+                onClick={() => setMode(item)}
+                style={{
+                  padding: '4px 8px',
+                  borderRadius: 6,
+                  border: 'none',
+                  background: active ? 'var(--surface)' : 'transparent',
+                  color: active ? 'var(--text)' : 'var(--text-3)',
+                  fontSize: 11,
+                  fontWeight: active ? 500 : 400,
+                  cursor: 'pointer',
+                  boxShadow: active ? 'var(--shadow-xs)' : 'none',
+                }}
+              >
+                {item === 'edit' ? '编辑' : '预览'}
+              </button>
+            )
+          })}
+        </div>
+      </div>
+
+      {mode === 'edit' ? (
+        <textarea
+          value={content}
+          onChange={(e) => setContent(e.target.value)}
+          disabled={loading}
+          placeholder="记录自己的理解、易错点、面试表达、下次要追问的问题…"
+          rows={6}
+          style={{
+            width: '100%',
+            minHeight: 140,
+            resize: 'vertical',
+            padding: '12px 13px',
+            borderRadius: 10,
+            border: '1px solid var(--border)',
+            background: 'var(--surface-2)',
+            color: 'var(--text)',
+            outline: 'none',
+            fontSize: 13,
+            lineHeight: 1.65,
+            fontFamily: 'var(--font-sans)',
+          }}
+          onFocus={(e) => {
+            e.currentTarget.style.borderColor = 'var(--primary)'
+            e.currentTarget.style.boxShadow = '0 0 0 3px var(--primary-light)'
+          }}
+          onBlur={(e) => {
+            e.currentTarget.style.borderColor = 'var(--border)'
+            e.currentTarget.style.boxShadow = 'none'
+          }}
+        />
+      ) : content.trim() ? (
+        <div
+          className="prose"
+          style={{
+            minHeight: 140,
+            padding: '12px 13px',
+            borderRadius: 10,
+            border: '1px solid var(--border-subtle)',
+            background: 'var(--surface-2)',
+            fontSize: 13,
+          }}
+        >
+          <MarkdownRenderer content={content} />
+        </div>
+      ) : (
+        <div
+          style={{
+            minHeight: 140,
+            padding: '12px 13px',
+            borderRadius: 10,
+            border: '1px dashed var(--border)',
+            background: 'var(--surface-2)',
+            color: 'var(--text-3)',
+            fontSize: 13,
+            display: 'flex',
+            alignItems: 'center',
+          }}
+        >
+          暂无笔记
+        </div>
+      )}
+
+      {embedded && (
+        <div
+          style={{
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'space-between',
+            gap: 10,
+            fontSize: 11,
+            color: 'var(--text-3)',
+          }}
+        >
+          <span>支持 Markdown，离开也会自动保存</span>
+          <span style={{ fontVariantNumeric: 'tabular-nums', whiteSpace: 'nowrap' }}>
+            {content.trim().length.toLocaleString()} 字
+          </span>
+        </div>
+      )}
+    </div>
+  )
+}
+
+interface NoteDrawerProps {
+  open: boolean
+  onClose: () => void
+  question: Question
+  refreshKey: number
+  onContentStateChange: (hasContent: boolean) => void
+}
+
+function NoteDrawer({
+  open,
+  onClose,
+  question,
+  refreshKey,
+  onContentStateChange,
+}: NoteDrawerProps) {
+  const panelRef = useRef<HTMLElement>(null)
+
+  useEffect(() => {
+    if (!open) return
+    document.body.style.overflow = 'hidden'
+    return () => {
+      document.body.style.overflow = ''
+    }
+  }, [open])
+
+  useEffect(() => {
+    if (!open) return
+    const t = window.setTimeout(() => panelRef.current?.focus(), 0)
+    return () => window.clearTimeout(t)
+  }, [open])
+
+  useEffect(() => {
+    if (!open) return
+    const handler = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') onClose()
+    }
+    window.addEventListener('keydown', handler)
+    return () => window.removeEventListener('keydown', handler)
+  }, [open, onClose])
+
+  if (!open) return null
+
+  return (
+    <>
+      <button
+        type="button"
+        aria-label="关闭题目笔记"
+        onClick={onClose}
+        style={{
+          position: 'fixed',
+          inset: 0,
+          zIndex: 169,
+          background: 'rgba(0,0,0,0.28)',
+          backdropFilter: 'blur(2px)',
+          WebkitBackdropFilter: 'blur(2px)',
+          border: 'none',
+          padding: 0,
+          margin: 0,
+          cursor: 'pointer',
+          animation: 'fade-in 0.16s var(--ease-out) both',
+        }}
+      />
+      <aside
+        ref={panelRef}
+        className="note-drawer-panel"
+        role="dialog"
+        aria-modal="true"
+        aria-label="题目笔记"
+        tabIndex={-1}
+        style={{
+          position: 'fixed',
+          top: 0,
+          right: 0,
+          bottom: 0,
+          zIndex: 170,
+          width: 'min(420px, 100vw)',
+          background: 'var(--surface)',
+          borderLeft: '1px solid var(--border-subtle)',
+          boxShadow: 'var(--shadow-xl)',
+          display: 'flex',
+          flexDirection: 'column',
+          animation: 'drawer-slide-in 0.2s var(--ease-out) both',
+        }}
+      >
+        <div
+          style={{
+            padding: '14px 16px',
+            borderBottom: '1px solid var(--border-subtle)',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'space-between',
+            gap: 12,
+            flexShrink: 0,
+          }}
+        >
+          <div style={{ minWidth: 0 }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+              <p style={{ fontSize: 14, fontWeight: 600, color: 'var(--text)' }}>题目笔记</p>
+              <span style={{ display: 'inline-flex', alignItems: 'center', gap: 4 }}>
+                <Kbd>N</Kbd>
+                <Kbd>Esc</Kbd>
+              </span>
+            </div>
+            <p
+              style={{
+                fontSize: 12,
+                color: 'var(--text-3)',
+                marginTop: 3,
+                overflow: 'hidden',
+                textOverflow: 'ellipsis',
+                whiteSpace: 'nowrap',
+              }}
+            >
+              {question.question}
+            </p>
+          </div>
+          <button
+            type="button"
+            onClick={onClose}
+            aria-label="关闭题目笔记"
+            style={{
+              width: 30,
+              height: 30,
+              borderRadius: 8,
+              border: 'none',
+              background: 'transparent',
+              color: 'var(--text-3)',
+              cursor: 'pointer',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              flexShrink: 0,
+            }}
+            onMouseEnter={(e) => {
+              ;(e.currentTarget as HTMLElement).style.background = 'var(--surface-2)'
+              ;(e.currentTarget as HTMLElement).style.color = 'var(--text)'
+            }}
+            onMouseLeave={(e) => {
+              ;(e.currentTarget as HTMLElement).style.background = 'transparent'
+              ;(e.currentTarget as HTMLElement).style.color = 'var(--text-3)'
+            }}
+          >
+            <svg
+              width="15"
+              height="15"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              strokeWidth="2.2"
+              strokeLinecap="round"
+            >
+              <line x1="18" y1="6" x2="6" y2="18" />
+              <line x1="6" y1="6" x2="18" y2="18" />
+            </svg>
+          </button>
+        </div>
+
+        <div
+          style={{
+            flex: 1,
+            minHeight: 0,
+            overflowY: 'auto',
+            padding: 16,
+          }}
+        >
+          <QuestionNotes
+            questionId={question.id}
+            refreshKey={refreshKey}
+            embedded
+            onContentStateChange={onContentStateChange}
+          />
+        </div>
+      </aside>
+    </>
+  )
+}
+
 // ─── AI Drawer ────────────────────────────────────────────────────────────────
 // Fixed right drawer — never affects main content width
 
@@ -954,6 +1958,7 @@ function AIDrawer({ open, onClose, question, answerVisible, onOpenSettings }: AI
 
       {/* Drawer panel */}
       <div
+        aria-hidden={!open}
         style={{
           position: 'fixed',
           top: 'var(--navbar-h)',
@@ -966,6 +1971,8 @@ function AIDrawer({ open, onClose, question, answerVisible, onOpenSettings }: AI
           boxShadow: open ? 'var(--shadow-xl)' : 'none',
           transform: open ? 'translateX(0)' : 'translateX(100%)',
           transition: 'transform 0.28s var(--ease-out), box-shadow 0.28s',
+          visibility: open ? 'visible' : 'hidden',
+          pointerEvents: open ? 'auto' : 'none',
           display: 'flex',
           flexDirection: 'column',
           overflow: 'hidden',
@@ -1160,12 +2167,13 @@ function AIDrawer({ open, onClose, question, answerVisible, onOpenSettings }: AI
 
 export default function QuestionDetail() {
   const { id } = useParams<{ id: string }>()
-  const [searchParams] = useSearchParams()
+  const [searchParams, setSearchParams] = useSearchParams()
   const navigate = useNavigate()
 
   const { question, loading } = useQuestion(id)
   const { allQuestions } = useQuestions()
-  const { getStatus, setStatus, getRecord, studyMode, streak, incrementStreak } = useStudyStore()
+  const { records, getStatus, setStatus, getRecord, studyMode, streak, incrementStreak } =
+    useStudyStore()
   const { config: aiConfig } = useAIStore()
 
   const [answerVisible, setAnswerVisible] = useState(false)
@@ -1173,14 +2181,43 @@ export default function QuestionDetail() {
   const [justMarked, setJustMarked] = useState<StudyStatus | null>(null)
   const [lastPressedKey, setLastPressedKey] = useState<'1' | '2' | '3' | null>(null)
   const [aiDrawerOpen, setAiDrawerOpen] = useState(false)
+  const [noteDrawerOpen, setNoteDrawerOpen] = useState(false)
+  const [hasNote, setHasNote] = useState(false)
+  const [starred, setStarred] = useState(false)
   const [settingsOpen, setSettingsOpen] = useState(false)
   const [celebrationStreak, setCelebrationStreak] = useState(0)
+  const [sessionFinished, setSessionFinished] = useState(false)
+  const [noteRefreshKey, setNoteRefreshKey] = useState(0)
   const answerRef = useRef<HTMLDivElement>(null)
+  const markingRef = useRef(false)
 
-  // Session context (from ?ids=... params)
-  const sessionIds = searchParams.get('ids')?.split(',').filter(Boolean) ?? []
+  // Session context (from ?ids=... or a larger ?session=... stored in sessionStorage)
+  const sessionKey = searchParams.get('session')
+  const inlineSessionIds = useMemo(
+    () => searchParams.get('ids')?.split(',').filter(Boolean) ?? [],
+    [searchParams],
+  )
+  const [storedSessionIds, setStoredSessionIds] = useState<string[]>(() =>
+    readPracticeSession(sessionKey),
+  )
+
+  useEffect(() => {
+    setStoredSessionIds(readPracticeSession(sessionKey))
+  }, [sessionKey])
+
+  const sessionIds = inlineSessionIds.length > 0 ? inlineSessionIds : storedSessionIds
   const isInSession = sessionIds.length > 0
   const sessionIndex = isInSession ? sessionIds.indexOf(id ?? '') : -1
+  const sessionSearch = sessionKey
+    ? `?session=${sessionKey}`
+    : sessionIds.length > 0
+      ? `?ids=${sessionIds.join(',')}`
+      : ''
+  const sessionIdentity = sessionKey
+    ? `session:${sessionKey}`
+    : inlineSessionIds.length > 0
+      ? `ids:${inlineSessionIds.join(',')}`
+      : 'browse'
 
   // Adjacent IDs from the full question list (for non-session browsing)
   // Sorted same as default list order (insertion order = file order by id)
@@ -1198,26 +2235,143 @@ export default function QuestionDetail() {
     }
   }, [id, allQuestions, question])
 
-  const prevId =
-    isInSession && sessionIndex > 0
+  const prevId = isInSession
+    ? sessionIndex > 0
       ? sessionIds[sessionIndex - 1]
-      : (searchParams.get('prev') ?? prevIdByList)
-  const nextId =
-    isInSession && sessionIndex < sessionIds.length - 1
+      : null
+    : (searchParams.get('prev') ?? prevIdByList)
+  const nextId = isInSession
+    ? sessionIndex >= 0 && sessionIndex < sessionIds.length - 1
       ? sessionIds[sessionIndex + 1]
-      : (searchParams.get('next') ?? nextIdByList)
+      : null
+    : (searchParams.get('next') ?? nextIdByList)
   const sessionCurrent = sessionIndex + 1
   const sessionTotal = sessionIds.length
 
-  // Reset on question change
+  const sessionStats = useMemo(() => {
+    const counts = { mastered: 0, review: 0, unlearned: 0 }
+    const retryIds: string[] = []
+
+    for (const qid of sessionIds) {
+      const status = records[qid]?.status ?? 'unlearned'
+      counts[status]++
+      if (status !== 'mastered') retryIds.push(qid)
+    }
+
+    return {
+      ...counts,
+      total: sessionIds.length,
+      retryIds,
+    }
+  }, [records, sessionIds])
+
+  const relatedPracticeItems = useMemo(() => {
+    if (!question || allQuestions.length === 0) return []
+
+    const currentTags = new Set(question.tags.map((tag) => tag.toLowerCase()))
+    const statusRank: Record<StudyStatus, number> = {
+      review: 2,
+      unlearned: 1,
+      mastered: 0,
+    }
+
+    return allQuestions
+      .filter((candidate) => candidate.id !== question.id)
+      .map((candidate) => {
+        const matchedTags = candidate.tags.filter((tag) => currentTags.has(tag.toLowerCase()))
+        const status = records[candidate.id]?.status ?? 'unlearned'
+        const sameModule = candidate.module === question.module
+        const sameDifficulty = candidate.difficulty === question.difficulty
+        const score =
+          matchedTags.length * 8 +
+          (sameModule ? 5 : 0) +
+          (sameDifficulty ? 2 : 0) +
+          statusRank[status] * 3
+
+        return {
+          question: candidate,
+          status,
+          matchedTags,
+          score,
+        }
+      })
+      .filter((item) => item.score >= 5)
+      .sort((a, b) => {
+        if (b.score !== a.score) return b.score - a.score
+        if (statusRank[b.status] !== statusRank[a.status]) {
+          return statusRank[b.status] - statusRank[a.status]
+        }
+        return a.question.id.localeCompare(b.question.id)
+      })
+      .slice(0, 5)
+  }, [allQuestions, question, records])
+
+  const shouldAutoRevealAnswer = studyMode === 'memory-only'
+
+  // Reset when the question or practice session changes. A retry session can
+  // legitimately restart from the same question id with a new session key.
+  // biome-ignore lint/correctness/useExhaustiveDependencies: sessionIdentity intentionally resets state when the same question restarts in a new practice session.
   useEffect(() => {
-    setAnswerVisible(false)
+    markingRef.current = false
+    setMarking(false)
+    setAnswerVisible(shouldAutoRevealAnswer)
     setJustMarked(null)
     setLastPressedKey(null)
+    setSessionFinished(false)
+    setNoteDrawerOpen(false)
     window.scrollTo({ top: 0, behavior: 'smooth' })
     // Clear per-question session review guard so the new question starts fresh
     return () => {
       if (id) clearSessionReview(id)
+    }
+  }, [id, sessionIdentity, shouldAutoRevealAnswer])
+
+  useEffect(() => {
+    if (searchParams.get('note') !== '1') return
+    setNoteDrawerOpen(true)
+
+    const nextParams = new URLSearchParams(searchParams)
+    nextParams.delete('note')
+    setSearchParams(nextParams, { replace: true })
+  }, [searchParams, setSearchParams])
+
+  useEffect(() => {
+    let cancelled = false
+    if (!id) {
+      setHasNote(false)
+      return
+    }
+
+    getQuestionNote(id)
+      .then((note) => {
+        if (!cancelled) setHasNote(Boolean(note?.content.trim()))
+      })
+      .catch(() => {
+        if (!cancelled) setHasNote(false)
+      })
+
+    return () => {
+      cancelled = true
+    }
+  }, [id])
+
+  useEffect(() => {
+    let cancelled = false
+    if (!id) {
+      setStarred(false)
+      return
+    }
+
+    getQuestionFlag(id)
+      .then((flag) => {
+        if (!cancelled) setStarred(Boolean(flag?.starred))
+      })
+      .catch(() => {
+        if (!cancelled) setStarred(false)
+      })
+
+    return () => {
+      cancelled = true
     }
   }, [id])
 
@@ -1226,36 +2380,42 @@ export default function QuestionDetail() {
 
   const handleSetStatus = useCallback(
     async (status: StudyStatus, key?: '1' | '2' | '3') => {
-      if (!id || marking) return
+      if (!id || markingRef.current) return
+      markingRef.current = true
       setMarking(true)
       setJustMarked(status)
       if (key) setLastPressedKey(key)
-      await setStatus(id, status)
-      setMarking(false)
 
-      // Increment streak and trigger celebration if milestone hit
-      incrementStreak()
-      const newStreak = streak.currentStreak + 1
-      const milestones = [3, 5, 10, 20, 50]
-      if (milestones.includes(newStreak)) {
-        setCelebrationStreak(newStreak)
-      }
+      try {
+        await setStatus(id, status)
 
-      if (isInSession && nextId) {
-        setTimeout(() => {
-          const idsParam = sessionIds.length > 0 ? `?ids=${sessionIds.join(',')}` : ''
-          navigate(`/questions/${nextId}${idsParam}`)
-        }, 600)
+        // Increment streak and trigger celebration if milestone hit
+        incrementStreak()
+        const newStreak = streak.currentStreak + 1
+        const milestones = [3, 5, 10, 20, 50]
+        if (milestones.includes(newStreak)) {
+          setCelebrationStreak(newStreak)
+        }
+
+        if (isInSession && nextId) {
+          setTimeout(() => {
+            navigate(`/questions/${nextId}${sessionSearch}`)
+          }, 600)
+        } else if (isInSession) {
+          setSessionFinished(true)
+        }
+      } finally {
+        markingRef.current = false
+        setMarking(false)
       }
     },
     [
       id,
-      marking,
       setStatus,
       isInSession,
       nextId,
       navigate,
-      sessionIds,
+      sessionSearch,
       incrementStreak,
       streak.currentStreak,
     ],
@@ -1270,18 +2430,66 @@ export default function QuestionDetail() {
   const navigateTo = useCallback(
     (targetId: string | null | undefined) => {
       if (!targetId) return
-      const idsParam = sessionIds.length > 0 ? `?ids=${sessionIds.join(',')}` : ''
-      navigate(`/questions/${targetId}${idsParam}`)
+      navigate(`/questions/${targetId}${sessionSearch}`)
     },
-    [navigate, sessionIds],
+    [navigate, sessionSearch],
   )
+
+  const handleRetrySession = useCallback(() => {
+    if (sessionStats.retryIds.length === 0) return
+    for (const retryId of sessionStats.retryIds) {
+      clearSessionReview(retryId)
+    }
+    markingRef.current = false
+    setMarking(false)
+    setAnswerVisible(shouldAutoRevealAnswer)
+    setJustMarked(null)
+    setLastPressedKey(null)
+    setSessionFinished(false)
+    window.scrollTo({ top: 0, behavior: 'smooth' })
+    navigate(createPracticeSessionPath(sessionStats.retryIds[0], sessionStats.retryIds))
+  }, [navigate, sessionStats.retryIds, shouldAutoRevealAnswer])
+
+  const handleStartRelatedPractice = useCallback(() => {
+    const ids = relatedPracticeItems.map((item) => item.question.id)
+    if (ids.length === 0) return
+    navigate(createPracticeSessionPath(ids[0], ids))
+  }, [navigate, relatedPracticeItems])
+
+  const handleNoteSaved = useCallback(() => {
+    setHasNote(true)
+    setNoteRefreshKey((value) => value + 1)
+  }, [])
+
+  const handleToggleStarred = useCallback(async () => {
+    if (!id) return
+    const next = !starred
+    setStarred(next)
+    try {
+      await setQuestionStarred(id, next)
+    } catch {
+      setStarred(!next)
+    }
+  }, [id, starred])
+
+  const showSessionSummary =
+    isInSession && !nextId && answerVisible && (sessionFinished || currentStatus !== 'unlearned')
+  const showRelatedPractice =
+    answerVisible && relatedPracticeItems.length > 0 && (!isInSession || showSessionSummary)
 
   // Keyboard shortcuts
   useEffect(() => {
     const handler = (e: KeyboardEvent) => {
-      const tag = (document.activeElement as HTMLElement)?.tagName
-      if (tag === 'INPUT' || tag === 'TEXTAREA') return
-      if (aiDrawerOpen) return // don't interfere with AI chat
+      if (e.repeat) return
+      if (isEditableTarget(e.target)) return
+      if (settingsOpen || aiDrawerOpen) return
+      if (!e.metaKey && !e.ctrlKey && !e.altKey && e.key.toLowerCase() === 'n') {
+        e.preventDefault()
+        setNoteDrawerOpen((open) => !open)
+        return
+      }
+      if (noteDrawerOpen) return
+      if (markingRef.current) return
 
       switch (e.key) {
         case ' ':
@@ -1311,7 +2519,17 @@ export default function QuestionDetail() {
     }
     window.addEventListener('keydown', handler)
     return () => window.removeEventListener('keydown', handler)
-  }, [answerVisible, handleRevealAnswer, handleSetStatus, navigateTo, nextId, prevId, aiDrawerOpen])
+  }, [
+    answerVisible,
+    handleRevealAnswer,
+    handleSetStatus,
+    navigateTo,
+    nextId,
+    prevId,
+    aiDrawerOpen,
+    noteDrawerOpen,
+    settingsOpen,
+  ])
 
   // ── Loading ──────────────────────────────────────────────────────────────
 
@@ -1530,11 +2748,149 @@ export default function QuestionDetail() {
               </span>
             )}
 
-            {record && (
-              <span style={{ fontSize: 12, color: 'var(--text-3)', marginLeft: 'auto' }}>
-                已复习 {record.reviewCount} 次
-              </span>
-            )}
+            <div
+              style={{
+                marginLeft: 'auto',
+                display: 'flex',
+                alignItems: 'center',
+                gap: 8,
+                flexWrap: 'wrap',
+                justifyContent: 'flex-end',
+              }}
+            >
+              {record && (
+                <span style={{ fontSize: 12, color: 'var(--text-3)' }}>
+                  已复习 {record.reviewCount} 次
+                </span>
+              )}
+              <button
+                type="button"
+                onClick={handleToggleStarred}
+                aria-pressed={starred}
+                aria-label={starred ? '取消重点题' : '标记为重点题'}
+                title={starred ? '取消重点题' : '标记为重点题'}
+                style={{
+                  display: 'inline-flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  gap: 5,
+                  minHeight: 26,
+                  padding: '4px 9px',
+                  borderRadius: 8,
+                  border: '1px solid',
+                  borderColor: starred ? 'rgba(245,158,11,0.35)' : 'var(--border-subtle)',
+                  background: starred ? 'rgba(245,158,11,0.1)' : 'var(--surface-2)',
+                  color: starred ? '#b45309' : 'var(--text-2)',
+                  fontSize: 12,
+                  fontWeight: 500,
+                  cursor: 'pointer',
+                  transition: 'all 0.15s',
+                }}
+                onMouseEnter={(e) => {
+                  ;(e.currentTarget as HTMLElement).style.borderColor = 'rgba(245,158,11,0.45)'
+                  ;(e.currentTarget as HTMLElement).style.background = 'rgba(245,158,11,0.12)'
+                  ;(e.currentTarget as HTMLElement).style.color = '#b45309'
+                }}
+                onMouseLeave={(e) => {
+                  ;(e.currentTarget as HTMLElement).style.borderColor = starred
+                    ? 'rgba(245,158,11,0.35)'
+                    : 'var(--border-subtle)'
+                  ;(e.currentTarget as HTMLElement).style.background = starred
+                    ? 'rgba(245,158,11,0.1)'
+                    : 'var(--surface-2)'
+                  ;(e.currentTarget as HTMLElement).style.color = starred
+                    ? '#b45309'
+                    : 'var(--text-2)'
+                }}
+              >
+                <svg
+                  width="13"
+                  height="13"
+                  viewBox="0 0 24 24"
+                  fill={starred ? 'currentColor' : 'none'}
+                  stroke="currentColor"
+                  strokeWidth="2.1"
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                >
+                  <polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2" />
+                </svg>
+                {starred ? '重点题' : '重点'}
+              </button>
+              <button
+                type="button"
+                onClick={() => setNoteDrawerOpen(true)}
+                aria-label={hasNote ? '打开题目笔记' : '添加题目笔记'}
+                title={`${hasNote ? '打开题目笔记' : '添加题目笔记'}（N）`}
+                style={{
+                  display: 'inline-flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  gap: 5,
+                  minHeight: 26,
+                  padding: '4px 9px',
+                  borderRadius: 8,
+                  border: '1px solid',
+                  borderColor: hasNote ? 'rgba(var(--primary-rgb),0.28)' : 'var(--border-subtle)',
+                  background: hasNote ? 'var(--primary-light)' : 'var(--surface-2)',
+                  color: hasNote ? 'var(--primary)' : 'var(--text-2)',
+                  fontSize: 12,
+                  fontWeight: 500,
+                  cursor: 'pointer',
+                  transition: 'all 0.15s',
+                }}
+                onMouseEnter={(e) => {
+                  ;(e.currentTarget as HTMLElement).style.borderColor =
+                    'rgba(var(--primary-rgb),0.36)'
+                  ;(e.currentTarget as HTMLElement).style.background = 'var(--primary-light)'
+                  ;(e.currentTarget as HTMLElement).style.color = 'var(--primary)'
+                }}
+                onMouseLeave={(e) => {
+                  ;(e.currentTarget as HTMLElement).style.borderColor = hasNote
+                    ? 'rgba(var(--primary-rgb),0.28)'
+                    : 'var(--border-subtle)'
+                  ;(e.currentTarget as HTMLElement).style.background = hasNote
+                    ? 'var(--primary-light)'
+                    : 'var(--surface-2)'
+                  ;(e.currentTarget as HTMLElement).style.color = hasNote
+                    ? 'var(--primary)'
+                    : 'var(--text-2)'
+                }}
+              >
+                <span style={{ position: 'relative', display: 'inline-flex' }}>
+                  <svg
+                    width="13"
+                    height="13"
+                    viewBox="0 0 24 24"
+                    fill="none"
+                    stroke="currentColor"
+                    strokeWidth="2.2"
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                  >
+                    <path d="M4 19.5V5a2 2 0 0 1 2-2h12v18H6a2 2 0 0 1-2-1.5z" />
+                    <path d="M8 7h6" />
+                    <path d="M8 11h8" />
+                  </svg>
+                  {hasNote && (
+                    <span
+                      style={{
+                        position: 'absolute',
+                        right: -3,
+                        top: -3,
+                        width: 6,
+                        height: 6,
+                        borderRadius: '50%',
+                        background: 'var(--primary)',
+                        border: '1px solid var(--surface)',
+                      }}
+                    />
+                  )}
+                </span>
+                {hasNote ? '有笔记' : '笔记'}
+                <Kbd>N</Kbd>
+              </button>
+            </div>
           </div>
 
           {/* Question text */}
@@ -1628,11 +2984,13 @@ export default function QuestionDetail() {
         {showAnswerInputAbove && !hideAnswerInput && (
           <div className="animate-fade-in stagger-1">
             <MyAnswerInput
+              key={`answer-above-${id ?? ''}`}
               questionId={id ?? ''}
               questionText={question.question}
               answerText={question.answer}
               onOpenAIPanel={() => setAiDrawerOpen(true)}
               isAiEnabled={isAiEnabled}
+              onNoteSaved={handleNoteSaved}
             />
           </div>
         )}
@@ -1794,15 +3152,37 @@ export default function QuestionDetail() {
             {/* ── My Answer Input — "answer-alongside" mode: compact inside answer card ── */}
             {showAnswerInputInside && !hideAnswerInput && (
               <MyAnswerInput
+                key={`answer-inside-${id ?? ''}`}
                 questionId={id ?? ''}
                 questionText={question.question}
                 answerText={question.answer}
                 onOpenAIPanel={() => setAiDrawerOpen(true)}
                 isAiEnabled={isAiEnabled}
+                onNoteSaved={handleNoteSaved}
                 compact
               />
             )}
           </div>
+        )}
+
+        {showSessionSummary && (
+          <SessionCompletionCard
+            mastered={sessionStats.mastered}
+            review={sessionStats.review}
+            unlearned={sessionStats.unlearned}
+            total={sessionStats.total}
+            retryCount={sessionStats.retryIds.length}
+            onRetry={handleRetrySession}
+            onBackToPractice={() => navigate('/practice')}
+            onDashboard={() => navigate('/')}
+          />
+        )}
+
+        {showRelatedPractice && (
+          <RelatedPracticeCard
+            items={relatedPracticeItems}
+            onStartPractice={handleStartRelatedPractice}
+          />
         )}
 
         {/* ── Streak counter pill (always visible when streak > 0) ── */}
@@ -1975,6 +3355,14 @@ export default function QuestionDetail() {
         }}
       />
 
+      <NoteDrawer
+        open={noteDrawerOpen}
+        onClose={() => setNoteDrawerOpen(false)}
+        question={question}
+        refreshKey={noteRefreshKey}
+        onContentStateChange={setHasNote}
+      />
+
       {/* Settings Drawer */}
       <SettingsDrawer open={settingsOpen} onClose={() => setSettingsOpen(false)} />
 
@@ -2002,6 +3390,34 @@ export default function QuestionDetail() {
 				}
 				@media (min-width: 1024px) {
 					.ai-drawer-backdrop { display: none !important; }
+				}
+				@media (max-width: 520px) {
+					.note-drawer-panel {
+						top: auto !important;
+						left: 0 !important;
+						right: 0 !important;
+						width: 100% !important;
+						height: min(82dvh, 640px) !important;
+						border-left: none !important;
+						border-top: 1px solid var(--border-subtle) !important;
+						border-radius: 18px 18px 0 0 !important;
+						animation: slide-up 0.2s var(--ease-out) both !important;
+					}
+					.session-completion-stats {
+						grid-template-columns: 1fr !important;
+					}
+					.session-completion-actions {
+						flex-direction: column !important;
+					}
+					.session-completion-actions > button {
+						width: 100% !important;
+					}
+					.related-practice-header {
+						flex-direction: column !important;
+					}
+					.related-practice-row {
+						grid-template-columns: 1fr !important;
+					}
 				}
 			`}</style>
       {/* ── Mobile FAB: AI Assistant ── */}

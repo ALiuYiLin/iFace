@@ -26,8 +26,14 @@ export function Navbar() {
   }, [])
 
   useEffect(() => {
-    setMobileOpen(false)
-  }, [])
+    if (!mobileOpen) return
+
+    const handler = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') setMobileOpen(false)
+    }
+    window.addEventListener('keydown', handler)
+    return () => window.removeEventListener('keydown', handler)
+  }, [mobileOpen])
 
   // Lock body scroll when mobile menu open
   useEffect(() => {
@@ -115,7 +121,7 @@ export function Navbar() {
                     fontWeight: 500,
                     color: active ? 'var(--primary)' : 'var(--text-2)',
                     background: active ? 'var(--primary-light)' : 'transparent',
-                    letterSpacing: active ? undefined : '0.003em',
+                    letterSpacing: '0.003em',
                     textDecoration: 'none',
                     transition: 'color 0.15s, background 0.15s',
                     whiteSpace: 'nowrap',
@@ -358,6 +364,7 @@ export function Navbar() {
             <Link
               key={item.path}
               to={item.path}
+              onClick={() => setMobileOpen(false)}
               style={{
                 padding: '10px 14px',
                 borderRadius: 10,

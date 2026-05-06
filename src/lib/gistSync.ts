@@ -18,6 +18,18 @@
  *                      Built-in questions are identified by their stable IDs
  *                      and excluded.
  *
+ *   questionNotes    — User-written notes and AI-generated review snippets.
+ *                      These are authored content, so they are backed up for
+ *                      both built-in and custom questions.
+ *
+ *   aiSessions       — AI chat history for each question. API keys and model
+ *                      settings are NOT included; only conversation content is
+ *                      synced.
+ *
+ *   questionFlags    — Per-question markers such as starred/重点题.
+ *                      These are tiny tombstone-capable rows so unstar actions
+ *                      can also win during multi-device merges.
+ *
  *   categoryMap      — Only non-builtin (custom) categories.
  *                      Built-in categories are re-seeded locally on load.
  *
@@ -56,17 +68,37 @@
  *   v2  attempted fix — still included full question objects
  *   v3  this version — records-only, compact columnar encoding
  *       Readers also accept v1/v2 (decoded to the same GistBackup shape).
+ *   v4  adds per-question notes
+ *   v5  adds AI chat sessions
+ *   v6  adds per-question flags
  */
 
-import type { CategoryMap } from '@/lib/db'
-import type { Question, StudyRecord } from '@/types'
+import type { AISession } from '@/store/useAIStore'
+import type { Question, QuestionFlag, QuestionNote, StudyRecord } from '@/types'
+import {
+  bulkPutQuestionFlags,
+  bulkPutQuestionNotes,
+  bulkPutQuestions,
+  bulkPutStudyRecords,
+  type CategoryMap,
+  DEFAULT_CATEGORY_MAP,
+  getAllQuestionFlags,
+  getAllQuestionNotes,
+  getAllQuestions,
+  getAllStudyRecords,
+  getCategoryMap,
+  getCustomSources,
+  META_KEYS,
+  saveCategoryMap,
+  setMeta,
+} from './db'
 
 // ─── Constants ────────────────────────────────────────────────────────────────
 
 const GIST_FILENAME = 'iface-backup.json'
 const GIST_DESCRIPTION = 'iFace study progress backup (auto-generated)'
 
-const BACKUP_VERSION = 3
+const BACKUP_VERSION = 6
 const MINIMUM_SUPPORTED_VERSION = 1
 
 const GH_API = 'https://api.github.com'
@@ -134,9 +166,277 @@ function decodeRecords(compact: CompactRecords): StudyRecord[] {
   return records
 }
 
+// ─── Merge helpers ────────────────────────────────────────────────────────────
+
+function mergeByTimestamp<T>(
+  localItems: T[],
+  remoteItems: T[],
+  getId: (item: T) => string,
+  getTimestamp: (item: T) => number,
+): { items: T[]; remoteApplied: number } {
+  const merged = new Map<string, T>()
+  let remoteApplied = 0
+
+  for (const item of localItems) {
+    merged.set(getId(item), item)
+  }
+
+  for (const remoteItem of remoteItems) {
+    const id = getId(remoteItem)
+    const localItem = merged.get(id)
+    if (!localItem || getTimestamp(remoteItem) > getTimestamp(localItem)) {
+      merged.set(id, remoteItem)
+      remoteApplied++
+    }
+  }
+
+  return { items: [...merged.values()], remoteApplied }
+}
+
+function mergeById<T>(
+  localItems: T[],
+  remoteItems: T[],
+  getId: (item: T) => string,
+): { items: T[]; remoteAdded: number } {
+  const merged = new Map<string, T>()
+  let remoteAdded = 0
+
+  for (const item of localItems) {
+    merged.set(getId(item), item)
+  }
+
+  for (const remoteItem of remoteItems) {
+    const id = getId(remoteItem)
+    if (!merged.has(id)) {
+      merged.set(id, remoteItem)
+      remoteAdded++
+    }
+  }
+
+  return { items: [...merged.values()], remoteAdded }
+}
+
+function mergeStringList(
+  localItems: string[],
+  remoteItems: string[],
+): {
+  items: string[]
+  remoteAdded: number
+} {
+  const merged = new Set(localItems)
+  let remoteAdded = 0
+
+  for (const item of remoteItems) {
+    if (!merged.has(item)) {
+      merged.add(item)
+      remoteAdded++
+    }
+  }
+
+  return { items: [...merged], remoteAdded }
+}
+
+function mergeCategoryMaps(
+  localCategories: CategoryMap,
+  remoteCategories: CategoryMap,
+): { categories: CategoryMap; remoteAdded: number } {
+  const merged: CategoryMap = { ...localCategories }
+  let remoteAdded = 0
+
+  for (const [key, remoteEntry] of Object.entries(remoteCategories)) {
+    const localEntry = merged[key]
+    if (!localEntry) {
+      merged[key] = remoteEntry
+      remoteAdded++
+      continue
+    }
+
+    const moduleSet = new Set(localEntry.modules)
+    const sizeBefore = moduleSet.size
+    for (const moduleName of remoteEntry.modules) {
+      moduleSet.add(moduleName)
+    }
+    if (moduleSet.size > sizeBefore) {
+      merged[key] = { ...localEntry, modules: [...moduleSet] }
+      remoteAdded++
+    }
+  }
+
+  return { categories: merged, remoteAdded }
+}
+
+function normalizeSyncData(data: Partial<SyncData>): SyncData {
+  return {
+    studyRecords: Array.isArray(data.studyRecords) ? data.studyRecords : [],
+    questionNotes: Array.isArray(data.questionNotes) ? data.questionNotes : [],
+    questionFlags: Array.isArray(data.questionFlags) ? data.questionFlags : [],
+    aiSessions: Array.isArray(data.aiSessions) ? data.aiSessions : [],
+    customQuestions: Array.isArray(data.customQuestions) ? data.customQuestions : [],
+    customCategories:
+      data.customCategories && typeof data.customCategories === 'object'
+        ? data.customCategories
+        : {},
+    customSources: Array.isArray(data.customSources) ? data.customSources : [],
+  }
+}
+
+function mergeSyncData(
+  local: SyncData,
+  remote: GistBackup | null,
+): {
+  backup: SyncData
+  stats: SyncMergeStats
+} {
+  const localData = normalizeSyncData(local)
+  const remoteData = remote ? normalizeSyncData(remote) : null
+
+  if (!remoteData) {
+    return {
+      backup: localData,
+      stats: {
+        remoteRecordsApplied: 0,
+        remoteNotesApplied: 0,
+        remoteFlagsApplied: 0,
+        remoteAISessionsApplied: 0,
+        remoteQuestionsAdded: 0,
+        remoteSourcesAdded: 0,
+        remoteCategoriesAdded: 0,
+      },
+    }
+  }
+
+  const records = mergeByTimestamp(
+    localData.studyRecords,
+    remoteData.studyRecords,
+    (record) => record.questionId,
+    (record) => record.lastUpdated,
+  )
+  const notes = mergeByTimestamp(
+    localData.questionNotes,
+    remoteData.questionNotes,
+    (note) => note.questionId,
+    (note) => note.updatedAt,
+  )
+  const aiSessions = mergeByTimestamp(
+    localData.aiSessions,
+    remoteData.aiSessions,
+    (session) => session.questionId,
+    (session) => session.updatedAt,
+  )
+  const flags = mergeByTimestamp(
+    localData.questionFlags,
+    remoteData.questionFlags,
+    (flag) => flag.questionId,
+    (flag) => flag.updatedAt,
+  )
+  const questions = mergeById(
+    localData.customQuestions,
+    remoteData.customQuestions,
+    (question) => question.id,
+  )
+  const sources = mergeStringList(localData.customSources, remoteData.customSources)
+  const categories = mergeCategoryMaps(localData.customCategories, remoteData.customCategories)
+
+  return {
+    backup: {
+      studyRecords: records.items,
+      questionNotes: notes.items,
+      questionFlags: flags.items,
+      aiSessions: aiSessions.items,
+      customQuestions: questions.items,
+      customCategories: categories.categories,
+      customSources: sources.items,
+    },
+    stats: {
+      remoteRecordsApplied: records.remoteApplied,
+      remoteNotesApplied: notes.remoteApplied,
+      remoteFlagsApplied: flags.remoteApplied,
+      remoteAISessionsApplied: aiSessions.remoteApplied,
+      remoteQuestionsAdded: questions.remoteAdded,
+      remoteSourcesAdded: sources.remoteAdded,
+      remoteCategoriesAdded: categories.remoteAdded,
+    },
+  }
+}
+
+function syncResultFromBackup(
+  backup: SyncData,
+  exportedAt: string,
+  stats?: SyncMergeStats,
+): SyncResult {
+  return {
+    ok: true,
+    exportedAt,
+    recordCount: backup.studyRecords.length,
+    questionCount: backup.customQuestions.length,
+    noteCount: backup.questionNotes.length,
+    questionFlagCount: backup.questionFlags.filter((flag) => flag.starred).length,
+    aiSessionCount: backup.aiSessions.length,
+    aiSessions: backup.aiSessions,
+    mergedRemoteRecordCount: stats?.remoteRecordsApplied,
+    mergedRemoteNoteCount: stats?.remoteNotesApplied,
+    mergedRemoteQuestionFlagCount: stats?.remoteFlagsApplied,
+    mergedRemoteAISessionCount: stats?.remoteAISessionsApplied,
+    mergedRemoteQuestionCount: stats?.remoteQuestionsAdded,
+    mergedRemoteSourceCount: stats?.remoteSourcesAdded,
+    mergedRemoteCategoryCount: stats?.remoteCategoriesAdded,
+  }
+}
+
 // ─── Payload types ────────────────────────────────────────────────────────────
 
-/** Shape written to / read from Gist (v3) */
+/** Shape written to / read from Gist (v6) */
+interface GistPayloadV6 {
+  version: 6
+  exportedAt: string
+  /** Compact columnar study records */
+  records: CompactRecords
+  /** User-authored notes for built-in and custom questions */
+  questionNotes: QuestionNote[]
+  /** Per-question flags such as starred/重点题 */
+  questionFlags: QuestionFlag[]
+  /** AI chat history, without API keys or provider config */
+  aiSessions: AISession[]
+  /** User-imported questions only (no built-in question text) */
+  customQuestions: Question[]
+  /** Non-builtin categories only */
+  customCategories: CategoryMap
+  customSources: string[]
+}
+
+/** Legacy v4 shape */
+interface GistPayloadV4 {
+  version: 4
+  exportedAt: string
+  /** Compact columnar study records */
+  records: CompactRecords
+  /** User-authored notes for built-in and custom questions */
+  questionNotes: QuestionNote[]
+  /** User-imported questions only (no built-in question text) */
+  customQuestions: Question[]
+  /** Non-builtin categories only */
+  customCategories: CategoryMap
+  customSources: string[]
+}
+
+/** Legacy v5 shape */
+interface GistPayloadV5 {
+  version: 5
+  exportedAt: string
+  /** Compact columnar study records */
+  records: CompactRecords
+  /** User-authored notes for built-in and custom questions */
+  questionNotes: QuestionNote[]
+  /** AI chat history, without API keys or provider config */
+  aiSessions: AISession[]
+  /** User-imported questions only (no built-in question text) */
+  customQuestions: Question[]
+  /** Non-builtin categories only */
+  customCategories: CategoryMap
+  customSources: string[]
+}
+
+/** Legacy v3 shape */
 interface GistPayloadV3 {
   version: 3
   exportedAt: string
@@ -169,6 +469,9 @@ export interface GistBackup {
   version: number
   exportedAt: string
   studyRecords: StudyRecord[]
+  questionNotes: QuestionNote[]
+  questionFlags: QuestionFlag[]
+  aiSessions: AISession[]
   customQuestions: Question[]
   /** Full category map (custom categories only; builtins restored locally) */
   customCategories: CategoryMap
@@ -181,6 +484,52 @@ export interface SyncResult {
   exportedAt?: string
   recordCount?: number
   questionCount?: number
+  noteCount?: number
+  questionFlagCount?: number
+  aiSessionCount?: number
+  aiSessions?: AISession[]
+  mergedRemoteRecordCount?: number
+  mergedRemoteNoteCount?: number
+  mergedRemoteQuestionFlagCount?: number
+  mergedRemoteAISessionCount?: number
+  mergedRemoteQuestionCount?: number
+  mergedRemoteSourceCount?: number
+  mergedRemoteCategoryCount?: number
+}
+
+interface SyncMergeStats {
+  remoteRecordsApplied: number
+  remoteNotesApplied: number
+  remoteFlagsApplied: number
+  remoteAISessionsApplied: number
+  remoteQuestionsAdded: number
+  remoteSourcesAdded: number
+  remoteCategoriesAdded: number
+}
+
+export type SyncData = Omit<GistBackup, 'version' | 'exportedAt'>
+export type { SyncMergeStats }
+
+export function buildGistBackupPayload(
+  backup: SyncData,
+  exportedAt = new Date().toISOString(),
+): GistPayloadV6 {
+  const data = normalizeSyncData(backup)
+  return {
+    version: 6,
+    exportedAt,
+    records: encodeRecords(data.studyRecords),
+    questionNotes: data.questionNotes,
+    questionFlags: data.questionFlags,
+    aiSessions: data.aiSessions,
+    customQuestions: data.customQuestions,
+    customCategories: data.customCategories,
+    customSources: data.customSources,
+  }
+}
+
+export function serializeGistBackup(backup: SyncData, exportedAt?: string): string {
+  return JSON.stringify(buildGistBackupPayload(backup, exportedAt))
 }
 
 // ─── GitHub API types ─────────────────────────────────────────────────────────
@@ -344,7 +693,7 @@ async function fetchTruncatedContent(
 // ─── Payload parser / normaliser ──────────────────────────────────────────────
 
 /**
- * Parse raw JSON text → GistBackup, handling v1/v2/v3.
+ * Parse raw JSON text → GistBackup, handling v1/v2/v3/v4/v5/v6.
  * Throws on invalid JSON, unsupported version, or missing required fields.
  */
 function parsePayload(raw: string): GistBackup {
@@ -371,17 +720,32 @@ function parsePayload(raw: string): GistBackup {
     )
   }
 
-  // ── v3 ──
-  if (v === 3) {
-    const p = data as unknown as GistPayloadV3
+  // ── v3 / v4 / v5 / v6 ──
+  if (v === 3 || v === 4 || v === 5 || v === 6) {
+    const p = data as unknown as GistPayloadV3 | GistPayloadV4 | GistPayloadV5 | GistPayloadV6
     const compact = p.records
     const studyRecords =
       compact && Array.isArray(compact.ids) && compact.ids.length > 0 ? decodeRecords(compact) : []
 
     return {
-      version: 3,
+      version: v,
       exportedAt: typeof p.exportedAt === 'string' ? p.exportedAt : new Date().toISOString(),
       studyRecords,
+      questionNotes:
+        v === 4 && Array.isArray((p as GistPayloadV4).questionNotes)
+          ? (p as GistPayloadV4).questionNotes
+          : (v === 5 || v === 6) &&
+              Array.isArray((p as GistPayloadV5 | GistPayloadV6).questionNotes)
+            ? (p as GistPayloadV5 | GistPayloadV6).questionNotes
+            : [],
+      questionFlags:
+        v === 6 && Array.isArray((p as GistPayloadV6).questionFlags)
+          ? (p as GistPayloadV6).questionFlags
+          : [],
+      aiSessions:
+        (v === 5 || v === 6) && Array.isArray((p as GistPayloadV5 | GistPayloadV6).aiSessions)
+          ? (p as GistPayloadV5 | GistPayloadV6).aiSessions
+          : [],
       customQuestions: Array.isArray(p.customQuestions) ? p.customQuestions : [],
       customCategories:
         p.customCategories && typeof p.customCategories === 'object'
@@ -415,11 +779,25 @@ function parsePayload(raw: string): GistBackup {
       version: v,
       exportedAt: typeof p.exportedAt === 'string' ? p.exportedAt : new Date().toISOString(),
       studyRecords,
+      questionNotes: [],
+      questionFlags: [],
+      aiSessions: [],
       customQuestions,
       customCategories,
       customSources: Array.isArray(p.customSources) ? p.customSources : [],
     }
   }
+}
+
+export function parseGistBackupPayload(raw: string): GistBackup {
+  return parsePayload(raw)
+}
+
+export function mergeGistBackupData(
+  local: SyncData,
+  remote: GistBackup | null,
+): { backup: SyncData; stats: SyncMergeStats } {
+  return mergeSyncData(local, remote)
 }
 
 // ─── Read ─────────────────────────────────────────────────────────────────────
@@ -453,26 +831,19 @@ export async function loadFromGist(token: string): Promise<GistBackup | null> {
 // ─── Write ────────────────────────────────────────────────────────────────────
 
 /**
- * Build the v3 payload from the provided data and save it to Gist.
+ * Build the v6 payload from the provided data and save it to Gist.
  * Creates a new Gist on first use; PATCHes the existing one on subsequent calls.
  * JSON is minified (no indentation) to minimise file size.
  */
-async function writeToGist(
+export async function saveBackupToGist(
   token: string,
-  backup: Omit<GistBackup, 'version' | 'exportedAt'>,
+  backup: SyncData,
+  stats?: SyncMergeStats,
 ): Promise<SyncResult> {
   try {
-    const payload: GistPayloadV3 = {
-      version: 3,
-      exportedAt: new Date().toISOString(),
-      records: encodeRecords(backup.studyRecords),
-      customQuestions: backup.customQuestions,
-      customCategories: backup.customCategories,
-      customSources: backup.customSources,
-    }
-
     // Minified — no indentation — keeps file size small
-    const content = JSON.stringify(payload)
+    const payload = buildGistBackupPayload(backup)
+    const content = serializeGistBackup(backup, payload.exportedAt)
 
     const gistId = await findBackupGistId(token)
 
@@ -496,12 +867,7 @@ async function writeToGist(
       if (created?.id) setCachedGistId(created.id)
     }
 
-    return {
-      ok: true,
-      exportedAt: payload.exportedAt,
-      recordCount: backup.studyRecords.length,
-      questionCount: backup.customQuestions.length,
-    }
+    return syncResultFromBackup(backup, payload.exportedAt, stats)
   } catch (err) {
     return {
       ok: false,
@@ -539,6 +905,8 @@ export async function deleteBackupGist(token: string): Promise<SyncResult> {
  *
  * Only uploads:
  *   • Study records for ALL questions (built-in and custom)
+ *   • Question notes for ALL questions (user-authored content)
+ *   • AI sessions for ALL questions (conversation content only)
  *   • Custom (user-imported) question objects
  *   • Custom (user-created) categories
  *   • Custom source names
@@ -546,18 +914,17 @@ export async function deleteBackupGist(token: string): Promise<SyncResult> {
  * Built-in question text is NEVER uploaded — it's always fetched from
  * /public/questions/ locally, keeping the backup tiny.
  */
-export async function pushToGist(token: string): Promise<SyncResult> {
+export async function pushToGist(token: string, aiSessions: AISession[] = []): Promise<SyncResult> {
   try {
-    const { getAllStudyRecords, getAllQuestions, getCustomSources, getCategoryMap } = await import(
-      '@/lib/db'
-    )
-
-    const [studyRecords, allQuestions, customSources, categoryMap] = await Promise.all([
-      getAllStudyRecords(),
-      getAllQuestions(),
-      getCustomSources(),
-      getCategoryMap(),
-    ])
+    const [studyRecords, questionNotes, questionFlags, allQuestions, customSources, categoryMap] =
+      await Promise.all([
+        getAllStudyRecords(),
+        getAllQuestionNotes(),
+        getAllQuestionFlags(),
+        getAllQuestions(),
+        getCustomSources(),
+        getCategoryMap(),
+      ])
 
     // Only back up user-imported questions (id starts with "custom_")
     const customQuestions = allQuestions.filter(
@@ -570,12 +937,37 @@ export async function pushToGist(token: string): Promise<SyncResult> {
       if (!entry.builtin) customCategories[key] = entry
     }
 
-    return writeToGist(token, {
+    const localBackup: SyncData = {
       studyRecords,
+      questionNotes,
+      questionFlags,
+      aiSessions,
       customQuestions,
       customCategories,
       customSources,
-    })
+    }
+
+    // Load existing cloud data before writing so a second device's newer
+    // records or notes are preserved instead of being overwritten by this push.
+    const remoteBackup = await loadFromGist(token)
+    const merged = mergeSyncData(localBackup, remoteBackup)
+
+    const result = await saveBackupToGist(token, merged.backup, merged.stats)
+
+    if (result.ok) {
+      await Promise.all([
+        bulkPutStudyRecords(merged.backup.studyRecords),
+        bulkPutQuestionNotes(merged.backup.questionNotes),
+        bulkPutQuestionFlags(merged.backup.questionFlags),
+        merged.backup.customQuestions.length > 0
+          ? bulkPutQuestions(merged.backup.customQuestions)
+          : Promise.resolve(),
+        setMeta(META_KEYS.CUSTOM_SOURCES, merged.backup.customSources),
+        saveCategoryMap({ ...DEFAULT_CATEGORY_MAP, ...merged.backup.customCategories }),
+      ])
+    }
+
+    return result
   } catch (err) {
     return {
       ok: false,
@@ -588,76 +980,71 @@ export async function pushToGist(token: string): Promise<SyncResult> {
  * Pull backup from Gist and merge into local DB.
  *
  * Merge strategy:
- *   studyRecords     — full replace (cloud is source of truth for progress)
- *   customQuestions  — upsert (add/update; never delete existing ones)
- *   customSources    — replace
- *   categoryMap      — overlay custom categories on top of local builtins
+ *   studyRecords     — merge by lastUpdated (newer wins)
+ *   questionNotes    — merge by updatedAt (newer wins)
+ *   aiSessions       — merge by updatedAt (newer wins)
+ *   customQuestions  — union by id (never delete existing ones)
+ *   customSources    — union
+ *   categoryMap      — overlay merged custom categories on top of builtins
  *
  * Returns null  → no backup exists yet (not an error; caller should be silent)
  * Returns { ok: false } → error; show message to user
  */
-export async function pullFromGist(token: string): Promise<SyncResult | null> {
+export async function pullFromGist(
+  token: string,
+  localAISessions: AISession[] = [],
+): Promise<SyncResult | null> {
   try {
     const backup = await loadFromGist(token)
     if (!backup) return null
 
-    const {
-      bulkPutStudyRecords,
-      bulkPutQuestions,
-      setMeta,
-      META_KEYS,
-      getCategoryMap,
-      saveCategoryMap,
-      DEFAULT_CATEGORY_MAP,
-    } = await import('@/lib/db')
-
     const ops: Promise<unknown>[] = []
 
-    // Always restore study records (replace strategy)
-    ops.push(bulkPutStudyRecords(backup.studyRecords))
+    const [localRecords, localNotes, localFlags, allQuestions, localSources, currentMap] =
+      await Promise.all([
+        getAllStudyRecords(),
+        getAllQuestionNotes(),
+        getAllQuestionFlags(),
+        getAllQuestions(),
+        getCustomSources(),
+        getCategoryMap(),
+      ])
 
-    // Upsert custom questions
-    if (backup.customQuestions.length > 0) {
-      ops.push(bulkPutQuestions(backup.customQuestions))
+    const localCustomQuestions = allQuestions.filter(
+      (q) => typeof q.id === 'string' && q.id.startsWith('custom_'),
+    )
+    const localCustomCategories: CategoryMap = {}
+    for (const [key, entry] of Object.entries(currentMap)) {
+      if (!entry.builtin) localCustomCategories[key] = entry
     }
 
-    // Restore custom source list
-    if (backup.customSources && backup.customSources.length > 0) {
-      ops.push(setMeta(META_KEYS.CUSTOM_SOURCES, backup.customSources))
+    const merged = mergeSyncData(
+      {
+        studyRecords: localRecords,
+        questionNotes: localNotes,
+        questionFlags: localFlags,
+        aiSessions: localAISessions,
+        customQuestions: localCustomQuestions,
+        customCategories: localCustomCategories,
+        customSources: localSources,
+      },
+      backup,
+    )
+
+    ops.push(bulkPutStudyRecords(merged.backup.studyRecords))
+    ops.push(bulkPutQuestionNotes(merged.backup.questionNotes))
+    ops.push(bulkPutQuestionFlags(merged.backup.questionFlags))
+
+    if (merged.backup.customQuestions.length > 0) {
+      ops.push(bulkPutQuestions(merged.backup.customQuestions))
     }
 
-    // Merge categories: start from local builtins, overlay backup's custom cats
-    if (Object.keys(backup.customCategories).length > 0) {
-      const currentMap = await getCategoryMap()
-
-      // Begin with a fresh copy of the builtin defaults
-      const merged = { ...DEFAULT_CATEGORY_MAP }
-
-      // Overlay any custom categories from the backup
-      for (const [key, entry] of Object.entries(backup.customCategories)) {
-        // Never overwrite a builtin with a custom entry
-        if (!merged[key]) {
-          merged[key] = entry
-        }
-      }
-
-      // Preserve any custom categories that exist locally but not in the backup
-      // (so a device-specific import isn't wiped on pull)
-      for (const [key, entry] of Object.entries(currentMap)) {
-        if (!merged[key]) merged[key] = entry
-      }
-
-      ops.push(saveCategoryMap(merged))
-    }
+    ops.push(setMeta(META_KEYS.CUSTOM_SOURCES, merged.backup.customSources))
+    ops.push(saveCategoryMap({ ...DEFAULT_CATEGORY_MAP, ...merged.backup.customCategories }))
 
     await Promise.all(ops)
 
-    return {
-      ok: true,
-      exportedAt: backup.exportedAt,
-      recordCount: backup.studyRecords.length,
-      questionCount: backup.customQuestions.length,
-    }
+    return syncResultFromBackup(merged.backup, backup.exportedAt, merged.stats)
   } catch (err) {
     return {
       ok: false,

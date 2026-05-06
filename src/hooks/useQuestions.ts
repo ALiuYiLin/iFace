@@ -1,6 +1,10 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { getAllQuestions } from '@/lib/db'
-import { getDailyRecommendations, loadAllBuiltinModulesParallel } from '@/lib/questionLoader'
+import {
+  getDailyRecommendations,
+  loadAllBuiltinModulesParallel,
+  refreshBuiltinQuestionsIfNeeded,
+} from '@/lib/questionLoader'
 import type { Difficulty, FilterState, Module, Question, StudyStatus } from '@/types'
 
 export type SortKey = 'default' | 'difficulty-asc' | 'difficulty-desc' | 'module'
@@ -45,8 +49,17 @@ async function ensureLoaded(): Promise<Question[]> {
   _loading = true
 
   // Try to load from IndexedDB first
-  const cached = await getAllQuestions()
+  let cached = await getAllQuestions()
   if (cached.length > 0) {
+    try {
+      const refreshed = await refreshBuiltinQuestionsIfNeeded()
+      if (refreshed) {
+        cached = await getAllQuestions()
+      }
+    } catch (err) {
+      console.warn('Failed to refresh built-in questions, using cached data', err)
+    }
+
     _allQuestions = cached
     _loaded = true
     _loading = false

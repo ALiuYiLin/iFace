@@ -1,6 +1,11 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { MarkdownRenderer } from '@/components/ui/MarkdownRenderer'
-import { type AIMessage, buildQuestionContext, useAIStore } from '@/store/useAIStore'
+import {
+  type AIMessage,
+  buildQuestionSystemSuffix,
+  getAIQuickActions,
+  useAIStore,
+} from '@/store/useAIStore'
 import type { Question } from '@/types'
 
 // ─── Icons ────────────────────────────────────────────────────────────────────
@@ -250,29 +255,16 @@ function MessageBubble({ message, isStreaming, streamingText }: MessageBubblePro
 
 // ─── Empty State ──────────────────────────────────────────────────────────────
 
-function EmptyChat({ onQuickAction }: { onQuickAction: (prompt: string) => void }) {
-  const quickStarters = [
-    {
-      icon: '🎯',
-      label: '分析考点',
-      prompt: '请分析这道题的核心考察点，以及面试官想通过这道题了解候选人哪些能力？',
-    },
-    {
-      icon: '📝',
-      label: '答题结构',
-      prompt: '请给我一个清晰的答题框架和结构，让我在面试中能有条理地回答这道题。',
-    },
-    {
-      icon: '📖',
-      label: '讲解知识点',
-      prompt: '请帮我深入讲解这道题涉及的核心知识点，从原理到实践，让我真正理解而不只是背答案。',
-    },
-    {
-      icon: '🎤',
-      label: '模拟面试',
-      prompt: '请模拟面试官的角色，对我进行关于这道题的追问式面试练习，一次只问一个问题。',
-    },
-  ]
+function EmptyChat({
+  hasAnswer,
+  onQuickAction,
+}: {
+  hasAnswer: boolean
+  onQuickAction: (prompt: string) => void
+}) {
+  const quickStarters = getAIQuickActions(hasAnswer).filter((action) =>
+    ['analyze', 'structure', 'explain', 'practice'].includes(action.id),
+  )
 
   return (
     <div
@@ -613,7 +605,7 @@ export function AIPanel({
   const isReady = config.enabled && config.apiKey.trim().length > 0
 
   const buildContextMessages = useCallback((): { messages: AIMessage[]; systemSuffix: string } => {
-    const ctx = buildQuestionContext(
+    const systemSuffix = buildQuestionSystemSuffix(
       question.question,
       question.module,
       question.difficulty,
@@ -624,7 +616,7 @@ export function AIPanel({
       // First turn: attach question context as system suffix, no fake history
       return {
         messages: [],
-        systemSuffix: `\n\n---\n## 当前题目上下文\n${ctx}`,
+        systemSuffix,
       }
     }
 
@@ -632,7 +624,7 @@ export function AIPanel({
     // Question context is already baked into system prompt from first turn's exchange
     return {
       messages: [...messages],
-      systemSuffix: `\n\n---\n## 当前题目上下文\n${ctx}`,
+      systemSuffix,
     }
   }, [question, answerVisible, messages])
 
@@ -745,7 +737,7 @@ export function AIPanel({
         }}
       >
         {messages.length === 0 && !isStreaming ? (
-          <EmptyChat onQuickAction={handleQuickAction} />
+          <EmptyChat hasAnswer={answerVisible} onQuickAction={handleQuickAction} />
         ) : (
           <div
             style={{

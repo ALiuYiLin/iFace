@@ -2,6 +2,7 @@ import { lazy, Suspense, useEffect } from 'react'
 import { BrowserRouter, Route, Routes, useLocation } from 'react-router-dom'
 import { Navbar } from '@/components/layout/Navbar'
 import { Spinner } from '@/components/ui'
+import { PWAUpdatePrompt } from '@/components/ui/PWAUpdatePrompt'
 
 const Dashboard = lazy(() => import('@/pages/Dashboard'))
 const QuestionList = lazy(() => import('@/pages/QuestionList'))
@@ -64,6 +65,7 @@ export default function App() {
             </Routes>
           </Suspense>
         </main>
+        <PWAUpdatePrompt />
       </div>
     </BrowserRouter>
   )

@@ -3,9 +3,15 @@ import { useCallback, useEffect, useMemo, useState } from 'react'
 import { Link } from 'react-router-dom'
 import { Button, EmptyState, SegmentedRing, Skeleton } from '@/components/ui'
 import { useQuestions } from '@/hooks/useQuestions'
-import { DEFAULT_CATEGORY_MAP, getCategoryMap } from '@/lib/db'
+import { DEFAULT_CATEGORY_MAP, getAllQuestionNotes, getCategoryMap } from '@/lib/db'
 import { type StreakData, useStudyStore } from '@/store/useStudyStore'
-import { DIFFICULTY_LABELS, type Module, STATUS_LABELS, type StudyStatus } from '@/types'
+import {
+  DIFFICULTY_LABELS,
+  type Module,
+  type QuestionNote,
+  STATUS_LABELS,
+  type StudyStatus,
+} from '@/types'
 
 // ─── Streak Banner ────────────────────────────────────────────────────────────
 
@@ -590,6 +596,500 @@ function StatCard({
   )
 }
 
+// ─── Study Plan Card ─────────────────────────────────────────────────────────
+
+function StudyPlanCard({
+  dailyIds,
+  questions,
+  records,
+  moduleStats,
+  counts,
+  dailyGoal,
+  streak,
+}: {
+  dailyIds: string[]
+  questions: {
+    id: string
+    question: string
+    module: Module
+    difficulty: number
+  }[]
+  records: Record<string, { status: StudyStatus; lastUpdated?: number }>
+  moduleStats: { module: Module; questions: { id: string }[] }[]
+  counts: { mastered: number; review: number; unlearned: number }
+  dailyGoal: number
+  streak: StreakData
+}) {
+  const questionMap = useMemo(() => new Map(questions.map((q) => [q.id, q])), [questions])
+  const dailyQuestions = dailyIds.flatMap((id) => {
+    const q = questionMap.get(id)
+    return q ? [q] : []
+  })
+  const nextDailyQuestion = dailyQuestions.find((q) => records[q.id]?.status !== 'mastered')
+  const oldestReview = questions
+    .filter((q) => records[q.id]?.status === 'review')
+    .sort((a, b) => (records[a.id]?.lastUpdated ?? 0) - (records[b.id]?.lastUpdated ?? 0))[0]
+
+  const moduleFocus = moduleStats
+    .map(({ module, questions: qs }) => {
+      const total = qs.length
+      const mastered = qs.filter((q) => records[q.id]?.status === 'mastered').length
+      const review = qs.filter((q) => records[q.id]?.status === 'review').length
+      const unlearned = total - mastered - review
+      const percent = total > 0 ? Math.round((mastered / total) * 100) : 0
+      return {
+        module,
+        total,
+        mastered,
+        review,
+        unlearned,
+        percent,
+        score: review * 4 + unlearned + (100 - percent) / 20,
+      }
+    })
+    .filter((item) => item.total > 0 && item.percent < 100)
+    .sort((a, b) => b.score - a.score)[0]
+
+  const todayDone = streak.todayCount
+  const remainingToday = Math.max(0, dailyGoal - todayDone)
+  const todayPercent = Math.min(100, Math.round((todayDone / dailyGoal) * 100))
+  const dailyPracticePath =
+    dailyIds.length > 0 ? `/practice?ids=${dailyIds.join(',')}` : '/practice'
+
+  const headline =
+    remainingToday === 0
+      ? '今日目标已完成，可以继续挑战'
+      : counts.review > 0
+        ? '先处理待复习题目'
+        : '补齐今日练习目标'
+
+  const subline =
+    counts.review > 0
+      ? `${counts.review} 道题正在等待复习，优先清理能更快稳住记忆。`
+      : remainingToday > 0
+        ? `还差 ${remainingToday} 题完成今日目标，推荐从今日题单继续。`
+        : '今天已经完成目标，可以按薄弱模块继续加练。'
+
+  return (
+    <div className="card animate-fade-in stagger-1" style={{ padding: 20, marginBottom: 20 }}>
+      <div
+        className="study-plan-grid"
+        style={{
+          display: 'grid',
+          gridTemplateColumns: '1.2fr 1fr',
+          gap: 18,
+          alignItems: 'stretch',
+        }}
+      >
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 14, minWidth: 0 }}>
+          <div>
+            <p
+              style={{
+                fontSize: 11,
+                fontWeight: 600,
+                color: 'var(--text-3)',
+                textTransform: 'uppercase',
+                letterSpacing: '0.06em',
+                marginBottom: 6,
+              }}
+            >
+              下一步建议
+            </p>
+            <h2
+              style={{
+                fontSize: 18,
+                fontWeight: 700,
+                color: 'var(--text)',
+                lineHeight: 1.35,
+                letterSpacing: '-0.01em',
+              }}
+            >
+              {headline}
+            </h2>
+            <p style={{ fontSize: 13, color: 'var(--text-2)', marginTop: 6, lineHeight: 1.65 }}>
+              {subline}
+            </p>
+          </div>
+
+          <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+            <div
+              style={{
+                flex: 1,
+                height: 8,
+                borderRadius: 99,
+                background: 'var(--surface-3)',
+                overflow: 'hidden',
+              }}
+            >
+              <div
+                style={{
+                  height: '100%',
+                  width: `${todayPercent}%`,
+                  borderRadius: 99,
+                  background: remainingToday === 0 ? 'var(--success)' : 'var(--primary)',
+                  transition: 'width 0.5s var(--ease-out)',
+                }}
+              />
+            </div>
+            <span
+              style={{
+                fontSize: 12,
+                color: 'var(--text-3)',
+                fontVariantNumeric: 'tabular-nums',
+                whiteSpace: 'nowrap',
+              }}
+            >
+              {todayDone}/{dailyGoal} 今日
+            </span>
+          </div>
+
+          <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+            <Link to={dailyPracticePath} style={{ textDecoration: 'none' }}>
+              <Button
+                variant="primary"
+                size="sm"
+                icon={
+                  <svg
+                    width="13"
+                    height="13"
+                    viewBox="0 0 24 24"
+                    fill="none"
+                    stroke="currentColor"
+                    strokeWidth="2.4"
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                  >
+                    <polygon points="5 3 19 12 5 21 5 3" />
+                  </svg>
+                }
+              >
+                {dailyIds.length > 0 ? `开始今日 ${dailyIds.length} 题` : '开始练习'}
+              </Button>
+            </Link>
+            {counts.review > 0 ? (
+              <Link to="/weak" style={{ textDecoration: 'none' }}>
+                <Button variant="secondary" size="sm">
+                  查看薄弱点
+                </Button>
+              </Link>
+            ) : (
+              moduleFocus && (
+                <Link
+                  to={`/questions?module=${encodeURIComponent(moduleFocus.module)}`}
+                  style={{ textDecoration: 'none' }}
+                >
+                  <Button variant="secondary" size="sm">
+                    练 {moduleFocus.module}
+                  </Button>
+                </Link>
+              )
+            )}
+          </div>
+        </div>
+
+        <div
+          style={{
+            display: 'grid',
+            gridTemplateColumns: '1fr 1fr',
+            gap: 10,
+            minWidth: 0,
+          }}
+          className="study-plan-signals"
+        >
+          {[
+            {
+              label: '待复习',
+              value: `${counts.review} 道`,
+              detail: oldestReview ? oldestReview.module : '暂无堆积',
+              color: 'var(--warning)',
+              bg: 'var(--warning-light)',
+            },
+            {
+              label: '未学习',
+              value: `${counts.unlearned} 道`,
+              detail: moduleFocus ? `${moduleFocus.module} 优先` : '题库已覆盖',
+              color: 'var(--primary)',
+              bg: 'var(--primary-light)',
+            },
+            {
+              label: '薄弱模块',
+              value: moduleFocus ? `${moduleFocus.percent}%` : '完成',
+              detail: moduleFocus
+                ? `${moduleFocus.mastered}/${moduleFocus.total} 已掌握`
+                : '没有明显短板',
+              color: moduleFocus ? 'var(--danger)' : 'var(--success)',
+              bg: moduleFocus ? 'var(--danger-light)' : 'var(--success-light)',
+            },
+            {
+              label: '下一题',
+              value: nextDailyQuestion
+                ? DIFFICULTY_LABELS[nextDailyQuestion.difficulty as 1 | 2 | 3]
+                : '无',
+              detail: nextDailyQuestion ? nextDailyQuestion.module : '今日题单已清空',
+              color: 'var(--text)',
+              bg: 'var(--surface-3)',
+            },
+          ].map((item) => (
+            <div
+              key={item.label}
+              style={{
+                borderRadius: 10,
+                border: '1px solid var(--border-subtle)',
+                background: 'var(--surface-2)',
+                padding: '11px 12px',
+                minWidth: 0,
+              }}
+            >
+              <p style={{ fontSize: 11, color: 'var(--text-3)', marginBottom: 4 }}>{item.label}</p>
+              <p
+                style={{
+                  fontSize: 16,
+                  fontWeight: 700,
+                  color: item.color,
+                  lineHeight: 1.2,
+                  fontVariantNumeric: 'tabular-nums',
+                }}
+              >
+                {item.value}
+              </p>
+              <p
+                style={{
+                  fontSize: 11,
+                  color: 'var(--text-3)',
+                  marginTop: 5,
+                  overflow: 'hidden',
+                  textOverflow: 'ellipsis',
+                  whiteSpace: 'nowrap',
+                }}
+              >
+                {item.detail}
+              </p>
+              <div
+                style={{
+                  width: 22,
+                  height: 3,
+                  borderRadius: 99,
+                  background: item.bg,
+                  marginTop: 8,
+                }}
+              />
+            </div>
+          ))}
+        </div>
+      </div>
+    </div>
+  )
+}
+
+// ─── Recent Notes Card ───────────────────────────────────────────────────────
+
+type RecentNoteItem = {
+  note: QuestionNote
+  question: {
+    id: string
+    question: string
+    module: Module
+    difficulty: number
+  }
+}
+
+function formatRecentNoteTime(timestamp: number): string {
+  const diff = Math.max(0, Date.now() - timestamp)
+  const minute = 60 * 1000
+  const hour = 60 * minute
+  const day = 24 * hour
+
+  if (diff < minute) return '刚刚'
+  if (diff < hour) return `${Math.floor(diff / minute)} 分钟前`
+  if (diff < day) return `${Math.floor(diff / hour)} 小时前`
+  if (diff < 7 * day) return `${Math.floor(diff / day)} 天前`
+
+  return new Date(timestamp).toLocaleDateString('zh-CN', {
+    month: 'short',
+    day: 'numeric',
+  })
+}
+
+function getNotePreview(content: string): string {
+  const text = content
+    .replace(/```[\s\S]*?```/g, ' ')
+    .replace(/[#>*_[\]`~-]+/g, ' ')
+    .replace(/\s+/g, ' ')
+    .trim()
+
+  if (!text) return '暂无笔记内容'
+  return text.length > 110 ? `${text.slice(0, 110)}...` : text
+}
+
+function RecentNotesCard({ notes, total }: { notes: RecentNoteItem[]; total: number }) {
+  return (
+    <div className="card animate-fade-in stagger-2" style={{ padding: 20, marginBottom: 20 }}>
+      <div
+        style={{
+          display: 'flex',
+          alignItems: 'flex-start',
+          justifyContent: 'space-between',
+          gap: 12,
+          marginBottom: 14,
+        }}
+      >
+        <div style={{ minWidth: 0 }}>
+          <h2
+            style={{
+              fontSize: 13,
+              fontWeight: 600,
+              color: 'var(--text)',
+              marginBottom: 3,
+            }}
+          >
+            最近笔记
+          </h2>
+          <p style={{ fontSize: 12, color: 'var(--text-3)' }}>
+            {total > 0 ? `${total} 道题已有笔记` : '记录后的题目会在这里出现'}
+          </p>
+        </div>
+        <Link
+          to="/questions?notes=1&sort=note-updated"
+          style={{ textDecoration: 'none', flexShrink: 0 }}
+        >
+          <Button variant="secondary" size="sm">
+            查看全部
+          </Button>
+        </Link>
+      </div>
+
+      {notes.length === 0 ? (
+        <div
+          style={{
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'space-between',
+            gap: 14,
+            padding: '14px 16px',
+            borderRadius: 10,
+            border: '1px dashed var(--border)',
+            background: 'var(--surface-2)',
+          }}
+        >
+          <div style={{ minWidth: 0 }}>
+            <p style={{ fontSize: 13, fontWeight: 600, color: 'var(--text)', marginBottom: 3 }}>
+              暂无笔记
+            </p>
+            <p style={{ fontSize: 12, color: 'var(--text-3)', lineHeight: 1.6 }}>
+              在题目页按 N 打开笔记，复盘内容会自动汇总到这里。
+            </p>
+          </div>
+          <Link to="/questions" style={{ textDecoration: 'none', flexShrink: 0 }}>
+            <Button variant="primary" size="sm">
+              去题库
+            </Button>
+          </Link>
+        </div>
+      ) : (
+        <div
+          className="recent-notes-grid"
+          style={{
+            display: 'grid',
+            gridTemplateColumns: 'repeat(2, 1fr)',
+            gap: 10,
+          }}
+        >
+          {notes.map(({ note, question }) => (
+            <Link
+              key={note.questionId}
+              to={`/questions/${question.id}?note=1`}
+              style={{
+                display: 'flex',
+                flexDirection: 'column',
+                gap: 7,
+                minWidth: 0,
+                minHeight: 116,
+                padding: '12px 14px',
+                borderRadius: 10,
+                border: '1px solid var(--border-subtle)',
+                background: 'var(--surface)',
+                textDecoration: 'none',
+                transition: 'background 0.15s, border-color 0.15s',
+              }}
+              onMouseEnter={(e) => {
+                ;(e.currentTarget as HTMLElement).style.borderColor =
+                  'rgba(var(--primary-rgb), 0.28)'
+                ;(e.currentTarget as HTMLElement).style.background = 'var(--surface-2)'
+              }}
+              onMouseLeave={(e) => {
+                ;(e.currentTarget as HTMLElement).style.borderColor = 'var(--border-subtle)'
+                ;(e.currentTarget as HTMLElement).style.background = 'var(--surface)'
+              }}
+            >
+              <div
+                style={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: 6,
+                  minWidth: 0,
+                }}
+              >
+                <span
+                  style={{
+                    fontSize: 11,
+                    color: 'var(--primary)',
+                    fontWeight: 600,
+                    overflow: 'hidden',
+                    textOverflow: 'ellipsis',
+                    whiteSpace: 'nowrap',
+                  }}
+                >
+                  {question.module}
+                </span>
+                <span style={{ fontSize: 11, color: 'var(--text-3)', flexShrink: 0 }}>
+                  {DIFFICULTY_LABELS[question.difficulty as 1 | 2 | 3]}
+                </span>
+                <span
+                  style={{
+                    marginLeft: 'auto',
+                    fontSize: 11,
+                    color: 'var(--text-3)',
+                    flexShrink: 0,
+                  }}
+                >
+                  {formatRecentNoteTime(note.updatedAt)}
+                </span>
+              </div>
+              <p
+                style={{
+                  fontSize: 13,
+                  fontWeight: 600,
+                  color: 'var(--text)',
+                  lineHeight: 1.45,
+                  overflow: 'hidden',
+                  display: '-webkit-box',
+                  WebkitLineClamp: 2,
+                  WebkitBoxOrient: 'vertical',
+                }}
+              >
+                {question.question}
+              </p>
+              <p
+                style={{
+                  fontSize: 12,
+                  color: 'var(--text-3)',
+                  lineHeight: 1.55,
+                  overflow: 'hidden',
+                  display: '-webkit-box',
+                  WebkitLineClamp: 2,
+                  WebkitBoxOrient: 'vertical',
+                }}
+              >
+                {getNotePreview(note.content)}
+              </p>
+            </Link>
+          ))}
+        </div>
+      )}
+    </div>
+  )
+}
+
 // ─── Skeleton ────────────────────────────────────────────────────────────────
 
 function DashboardSkeleton() {
@@ -791,9 +1291,30 @@ export default function Dashboard() {
     [allQuestions, hiddenModules],
   )
 
+  const [questionNotes, setQuestionNotes] = useState<QuestionNote[]>([])
   const [dailyIds, setDailyIds] = useState<string[]>([])
   const [dailyLoading, setDailyLoading] = useState(true)
   const [greeting, setGreeting] = useState('')
+
+  useEffect(() => {
+    let cancelled = false
+
+    const loadQuestionNotes = async () => {
+      try {
+        const notes = await getAllQuestionNotes()
+        if (!cancelled) setQuestionNotes(notes)
+      } catch {
+        if (!cancelled) setQuestionNotes([])
+      }
+    }
+
+    loadQuestionNotes()
+    window.addEventListener('focus', loadQuestionNotes)
+    return () => {
+      cancelled = true
+      window.removeEventListener('focus', loadQuestionNotes)
+    }
+  }, [])
 
   useEffect(() => {
     const h = new Date().getHours()
@@ -840,6 +1361,17 @@ export default function Dashboard() {
   const masteredPercent =
     totalQuestions > 0 ? Math.round((counts.mastered / totalQuestions) * 100) : 0
   const estimatedDays = getEstimatedDays(totalQuestions, dailyGoal)
+
+  const recentNoteItems = useMemo<RecentNoteItem[]>(() => {
+    const questionMap = new Map(visibleQuestions.map((q) => [q.id, q]))
+    return questionNotes
+      .filter((note) => note.content.trim().length > 0 && questionMap.has(note.questionId))
+      .sort((a, b) => b.updatedAt - a.updatedAt)
+      .map((note) => ({
+        note,
+        question: questionMap.get(note.questionId)!,
+      }))
+  }, [questionNotes, visibleQuestions])
 
   // Module progress: derive from visible questions grouped by module,
   // preserving the order defined in categoryModuleMap, then appending any
@@ -979,6 +1511,18 @@ export default function Dashboard() {
               icon={<IconClock />}
             />
           </div>
+
+          <StudyPlanCard
+            dailyIds={dailyIds}
+            questions={visibleQuestions}
+            records={records}
+            moduleStats={moduleStats}
+            counts={counts}
+            dailyGoal={dailyGoal}
+            streak={streak}
+          />
+
+          <RecentNotesCard notes={recentNoteItems.slice(0, 4)} total={recentNoteItems.length} />
 
           {/* ── Main Grid ── */}
           <div
@@ -1305,6 +1849,12 @@ export default function Dashboard() {
 					.main-grid {
 						grid-template-columns: 1fr !important;
 					}
+					.study-plan-grid {
+						grid-template-columns: 1fr !important;
+					}
+					.recent-notes-grid {
+						grid-template-columns: 1fr !important;
+					}
 					.daily-grid {
 						grid-template-columns: 1fr !important;
 					}
@@ -1317,6 +1867,9 @@ export default function Dashboard() {
 						grid-template-columns: 1fr !important;
 					}
 					.daily-grid {
+						grid-template-columns: 1fr !important;
+					}
+					.study-plan-signals {
 						grid-template-columns: 1fr !important;
 					}
 					.page-container {

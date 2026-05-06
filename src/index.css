@@ -133,7 +133,14 @@ html {
   -moz-osx-font-smoothing: grayscale;
   text-rendering: optimizeLegibility;
   scroll-behavior: smooth;
+  scrollbar-gutter: stable;
   text-size-adjust: 100%;
+}
+
+@media (min-width: 768px) {
+  html {
+    overflow-y: scroll;
+  }
 }
 
 body {

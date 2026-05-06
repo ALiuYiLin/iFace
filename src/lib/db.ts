@@ -1,12 +1,14 @@
 import { type IDBPDatabase, openDB } from 'idb'
-import type { Question, StudyRecord } from '@/types'
+import type { Question, QuestionFlag, QuestionNote, StudyRecord } from '../types'
 
 const DB_NAME = 'iface_db'
-const DB_VERSION = 1
+const DB_VERSION = 3
 
 export const STORES = {
   QUESTIONS: 'questions',
   STUDY_RECORDS: 'study_records',
+  QUESTION_NOTES: 'question_notes',
+  QUESTION_FLAGS: 'question_flags',
   META: 'meta',
 } as const
 
@@ -58,6 +60,23 @@ function getDB(): Promise<IDBPDatabase> {
           rs.createIndex('lastUpdated', 'lastUpdated', { unique: false })
         }
 
+        // Per-question notes store
+        if (!db.objectStoreNames.contains(STORES.QUESTION_NOTES)) {
+          const notes = db.createObjectStore(STORES.QUESTION_NOTES, {
+            keyPath: 'questionId',
+          })
+          notes.createIndex('updatedAt', 'updatedAt', { unique: false })
+        }
+
+        // Per-question flags such as starred/重点题.
+        if (!db.objectStoreNames.contains(STORES.QUESTION_FLAGS)) {
+          const flags = db.createObjectStore(STORES.QUESTION_FLAGS, {
+            keyPath: 'questionId',
+          })
+          flags.createIndex('starred', 'starred', { unique: false })
+          flags.createIndex('updatedAt', 'updatedAt', { unique: false })
+        }
+
         // Meta store (for tracking loaded modules, version, etc.)
         if (!db.objectStoreNames.contains(STORES.META)) {
           db.createObjectStore(STORES.META, { keyPath: 'key' })
@@ -98,19 +117,36 @@ export async function getQuestionCount(): Promise<number> {
 
 export async function deleteQuestionsBySource(source: string): Promise<void> {
   const db = await getDB()
+  const deletedIds: string[] = []
   const tx = db.transaction(STORES.QUESTIONS, 'readwrite')
   const index = tx.store.index('source')
   let cursor = await index.openCursor(source)
   while (cursor) {
+    deletedIds.push(cursor.value.id)
     await cursor.delete()
     cursor = await cursor.continue()
   }
   await tx.done
+
+  if (deletedIds.length > 0) {
+    const noteTx = db.transaction(STORES.QUESTION_NOTES, 'readwrite')
+    const flagTx = db.transaction(STORES.QUESTION_FLAGS, 'readwrite')
+    await Promise.all([
+      ...deletedIds.map((id) => noteTx.store.delete(id)),
+      noteTx.done,
+      ...deletedIds.map((id) => flagTx.store.delete(id)),
+      flagTx.done,
+    ])
+  }
 }
 
 export async function deleteQuestionById(id: string): Promise<void> {
   const db = await getDB()
-  await db.delete(STORES.QUESTIONS, id)
+  await Promise.all([
+    db.delete(STORES.QUESTIONS, id),
+    db.delete(STORES.QUESTION_NOTES, id),
+    db.delete(STORES.QUESTION_FLAGS, id),
+  ])
 }
 
 // ─── Study Records ────────────────────────────────────────────────────────────
@@ -146,6 +182,112 @@ export async function clearAllStudyRecords(): Promise<void> {
   await db.clear(STORES.STUDY_RECORDS)
 }
 
+// ─── Question Notes ──────────────────────────────────────────────────────────
+
+export async function getAllQuestionNotes(): Promise<QuestionNote[]> {
+  const db = await getDB()
+  return db.getAll(STORES.QUESTION_NOTES)
+}
+
+export async function getQuestionNote(questionId: string): Promise<QuestionNote | undefined> {
+  const db = await getDB()
+  return db.get(STORES.QUESTION_NOTES, questionId)
+}
+
+export async function putQuestionNote(note: QuestionNote): Promise<void> {
+  const db = await getDB()
+  const now = Date.now()
+  const existing = await getQuestionNote(note.questionId)
+  const trimmed = note.content.trim()
+
+  if (!trimmed) {
+    await db.delete(STORES.QUESTION_NOTES, note.questionId)
+    return
+  }
+
+  await db.put(STORES.QUESTION_NOTES, {
+    questionId: note.questionId,
+    content: note.content,
+    createdAt: existing?.createdAt ?? note.createdAt ?? now,
+    updatedAt: now,
+  })
+}
+
+export async function bulkPutQuestionNotes(notes: QuestionNote[]): Promise<void> {
+  const db = await getDB()
+  const tx = db.transaction(STORES.QUESTION_NOTES, 'readwrite')
+  await Promise.all([...notes.map((note) => tx.store.put(note)), tx.done])
+}
+
+export async function deleteQuestionNote(questionId: string): Promise<void> {
+  const db = await getDB()
+  await db.delete(STORES.QUESTION_NOTES, questionId)
+}
+
+export async function getQuestionNoteIds(): Promise<string[]> {
+  const notes = await getAllQuestionNotes()
+  return notes.filter((note) => note.content.trim().length > 0).map((note) => note.questionId)
+}
+
+export async function appendQuestionNoteContent(
+  questionId: string,
+  content: string,
+): Promise<QuestionNote> {
+  const db = await getDB()
+  const now = Date.now()
+  const existing = await db.get(STORES.QUESTION_NOTES, questionId)
+  const previous = existing?.content.trim()
+  const nextContent = previous ? `${previous}\n\n${content.trim()}` : content.trim()
+  const next: QuestionNote = {
+    questionId,
+    content: nextContent,
+    createdAt: existing?.createdAt ?? now,
+    updatedAt: now,
+  }
+  await db.put(STORES.QUESTION_NOTES, next)
+  return next
+}
+
+// ─── Question Flags ─────────────────────────────────────────────────────────
+
+export async function getAllQuestionFlags(): Promise<QuestionFlag[]> {
+  const db = await getDB()
+  return db.getAll(STORES.QUESTION_FLAGS)
+}
+
+export async function getQuestionFlag(questionId: string): Promise<QuestionFlag | undefined> {
+  const db = await getDB()
+  return db.get(STORES.QUESTION_FLAGS, questionId)
+}
+
+export async function setQuestionStarred(
+  questionId: string,
+  starred: boolean,
+): Promise<QuestionFlag> {
+  const db = await getDB()
+  const now = Date.now()
+  const existing = await getQuestionFlag(questionId)
+  const next: QuestionFlag = {
+    questionId,
+    starred,
+    createdAt: existing?.createdAt ?? now,
+    updatedAt: now,
+  }
+  await db.put(STORES.QUESTION_FLAGS, next)
+  return next
+}
+
+export async function bulkPutQuestionFlags(flags: QuestionFlag[]): Promise<void> {
+  const db = await getDB()
+  const tx = db.transaction(STORES.QUESTION_FLAGS, 'readwrite')
+  await Promise.all([...flags.map((flag) => tx.store.put(flag)), tx.done])
+}
+
+export async function getStarredQuestionIds(): Promise<string[]> {
+  const flags = await getAllQuestionFlags()
+  return flags.filter((flag) => flag.starred).map((flag) => flag.questionId)
+}
+
 // ─── Meta ─────────────────────────────────────────────────────────────────────
 
 export async function getMeta<T>(key: string): Promise<T | undefined> {
@@ -171,6 +313,7 @@ export const META_KEYS = {
   CUSTOM_SOURCES: 'custom_sources', // string[] — user-imported source names
   DAILY_RECS: 'daily_recommendations', // { date, ids }
   SCHEMA_VERSION: 'schema_version',
+  BUILTIN_QUESTIONS_VERSION: 'builtin_questions_version',
   CATEGORY_MAP: 'category_map', // CategoryMap — user-defined category → modules mapping
 } as const
 
@@ -338,11 +481,39 @@ export async function removeCustomSource(source: string): Promise<void> {
 // ─── Export all data (for backup) ────────────────────────────────────────────
 
 export async function exportAllData(): Promise<{
+  formatVersion: 3
+  exportedAt: string
   questions: Question[]
   studyRecords: StudyRecord[]
+  questionNotes: QuestionNote[]
+  questionFlags: QuestionFlag[]
+  customSources: string[]
+  customCategories: CategoryMap
 }> {
-  const [questions, studyRecords] = await Promise.all([getAllQuestions(), getAllStudyRecords()])
-  return { questions, studyRecords }
+  const [questions, studyRecords, questionNotes, questionFlags, customSources, categoryMap] =
+    await Promise.all([
+      getAllQuestions(),
+      getAllStudyRecords(),
+      getAllQuestionNotes(),
+      getAllQuestionFlags(),
+      getCustomSources(),
+      getCategoryMap(),
+    ])
+  const customCategories: CategoryMap = {}
+  for (const [key, entry] of Object.entries(categoryMap)) {
+    if (!entry.builtin) customCategories[key] = entry
+  }
+
+  return {
+    formatVersion: 3,
+    exportedAt: new Date().toISOString(),
+    questions,
+    studyRecords,
+    questionNotes,
+    questionFlags,
+    customSources,
+    customCategories,
+  }
 }
 
 // ─── Reset DB ─────────────────────────────────────────────────────────────────
@@ -352,6 +523,8 @@ export async function resetDatabase(): Promise<void> {
   await Promise.all([
     db.clear(STORES.QUESTIONS),
     db.clear(STORES.STUDY_RECORDS),
+    db.clear(STORES.QUESTION_NOTES),
+    db.clear(STORES.QUESTION_FLAGS),
     db.clear(STORES.META),
   ])
   dbPromise = null

@@ -19,6 +19,47 @@ export const QuestionArraySchema = z.array(QuestionSchema)
 
 export type ValidatedQuestion = z.infer<typeof QuestionSchema>
 
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === 'object' && value !== null && !Array.isArray(value)
+}
+
+function stableHash(value: string): string {
+  let hash = 2166136261
+  for (let i = 0; i < value.length; i++) {
+    hash ^= value.charCodeAt(i)
+    hash = Math.imul(hash, 16777619)
+  }
+  return (hash >>> 0).toString(36)
+}
+
+export function normalizeQuestionsForImport(data: unknown): unknown {
+  if (!Array.isArray(data)) return data
+
+  return data.map((item, index) => {
+    if (!isRecord(item)) return item
+
+    const next: Record<string, unknown> = { ...item }
+    const id = typeof next.id === 'string' ? next.id.trim() : ''
+    if (id) {
+      next.id = id
+    } else {
+      const seed = [
+        typeof next.module === 'string' ? next.module : '',
+        typeof next.question === 'string' ? next.question : '',
+        typeof next.answer === 'string' ? next.answer : '',
+        String(index + 1),
+      ].join('\n')
+      next.id = `auto-${index + 1}-${stableHash(seed)}`
+    }
+
+    if (next.tags === undefined) {
+      next.tags = []
+    }
+
+    return next
+  })
+}
+
 export function validateQuestions(data: unknown): {
   valid: ValidatedQuestion[]
   errors: { index: number; message: string }[]

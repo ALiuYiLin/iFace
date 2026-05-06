@@ -12,7 +12,7 @@ export default defineConfig({
     react(),
     tailwindcss(),
     VitePWA({
-      registerType: 'autoUpdate',
+      registerType: 'prompt',
       includeAssets: ['favicon.svg', 'icons/*.png'],
       manifest: {
         name: 'iFace · 前端面试刷题助手',
@@ -53,7 +53,7 @@ export default defineConfig({
         ],
       },
       workbox: {
-        globPatterns: ['**/*.{js,css,html,ico,png,svg,woff,woff2}'],
+        globPatterns: ['**/*.{js,css,html,ico,png,svg,woff,woff2,json,webmanifest}'],
         // Never let the Service Worker intercept /api/* requests —
         // those must always reach the Vercel serverless functions via the network.
         navigateFallbackDenylist: [/^\/api\//],

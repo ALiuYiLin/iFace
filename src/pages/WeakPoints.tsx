@@ -1,7 +1,8 @@
 import { useMemo, useState } from 'react'
-import { Link } from 'react-router-dom'
+import { Link, useNavigate } from 'react-router-dom'
 import { Button, EmptyState, Skeleton } from '@/components/ui'
 import { useQuestions } from '@/hooks/useQuestions'
+import { createPracticeSessionPath, getInlinePracticeSearch } from '@/lib/practiceSession'
 import { useStudyStore } from '@/store/useStudyStore'
 import {
   DIFFICULTY_COLORS,
@@ -48,7 +49,7 @@ function WeakQuestionRow({
   index: number
   sessionIds: string[]
 }) {
-  const idsParam = sessionIds.length > 0 ? `?ids=${sessionIds.join(',')}` : ''
+  const idsParam = getInlinePracticeSearch(sessionIds)
 
   const rankBg =
     index < 3 ? 'rgba(239,68,68,0.1)' : index < 10 ? 'rgba(245,158,11,0.1)' : 'var(--surface-3)'
@@ -447,6 +448,7 @@ const SORT_OPTIONS: { value: SortMode; label: string }[] = [
 // ─── Main Page ────────────────────────────────────────────────────────────────
 
 export default function WeakPoints() {
+  const navigate = useNavigate()
   const { allQuestions, initializing } = useQuestions()
   const { records, setStatus } = useStudyStore()
 
@@ -513,6 +515,11 @@ export default function WeakPoints() {
 
   const sessionIds = displayItems.map(({ question: q }) => q.id)
 
+  const handleStartSession = () => {
+    if (sessionIds.length === 0) return
+    navigate(createPracticeSessionPath(sessionIds[0], sessionIds))
+  }
+
   const handleMarkAllMastered = async () => {
     if (displayItems.length === 0) return
     setClearing('all')
@@ -569,29 +576,28 @@ export default function WeakPoints() {
 
         {weakItems.length > 0 && sessionIds.length > 0 && (
           <div style={{ flexShrink: 0 }}>
-            <Link to={`/questions/${sessionIds[0]}?ids=${sessionIds.join(',')}`}>
-              <Button
-                variant="primary"
-                size="sm"
-                icon={
-                  <svg
-                    width="12"
-                    height="12"
-                    viewBox="0 0 24 24"
-                    fill="none"
-                    stroke="currentColor"
-                    strokeWidth="2.5"
-                    strokeLinecap="round"
-                    strokeLinejoin="round"
-                  >
-                    <polygon points="5 3 19 12 5 21 5 3" />
-                  </svg>
-                }
-                className="px-2!"
-              >
-                集中攻克
-              </Button>
-            </Link>
+            <Button
+              variant="primary"
+              size="sm"
+              onClick={handleStartSession}
+              icon={
+                <svg
+                  width="12"
+                  height="12"
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="currentColor"
+                  strokeWidth="2.5"
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                >
+                  <polygon points="5 3 19 12 5 21 5 3" />
+                </svg>
+              }
+              className="px-2!"
+            >
+              集中攻克
+            </Button>
           </div>
         )}
       </div>

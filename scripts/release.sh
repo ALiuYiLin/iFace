@@ -4,7 +4,7 @@
 #
 # Usage:
 #   ./scripts/release.sh              # use version from package.json
-#   ./scripts/release.sh 1.0.0        # override version
+#   ./scripts/release.sh 1.0.0        # verify package.json is 1.0.0, then release
 #   ./scripts/release.sh --dry-run    # preview without making changes
 #
 # Requirements:
@@ -45,7 +45,7 @@ for arg in "$@"; do
     --help|-h)
       echo "Usage: $0 [version] [--dry-run]"
       echo ""
-      echo "  version     Semantic version string, e.g. 1.2.0 (default: from package.json)"
+      echo "  version     Optional semantic version guard; must match package.json"
       echo "  --dry-run   Preview all steps without making any changes"
       exit 0
       ;;
@@ -71,12 +71,17 @@ log_success "Prerequisites OK"
 # ─── Resolve version ──────────────────────────────────────────────────────────
 log_step "Resolving version"
 
+PACKAGE_VERSION="$(node -p "require('./package.json').version" 2>/dev/null)" \
+  || die "Could not read version from package.json"
+
+if [[ -n "$VERSION_OVERRIDE" && "$VERSION_OVERRIDE" != "$PACKAGE_VERSION" ]]; then
+  die "Version argument '$VERSION_OVERRIDE' does not match package.json version '$PACKAGE_VERSION'. Update package.json, README, docs, and smoke records first."
+fi
+
+VERSION="$PACKAGE_VERSION"
 if [[ -n "$VERSION_OVERRIDE" ]]; then
-  VERSION="$VERSION_OVERRIDE"
-  log_info "Using override version: $VERSION"
+  log_info "Version argument matches package.json: $VERSION"
 else
-  VERSION="$(node -p "require('./package.json').version" 2>/dev/null)" \
-    || die "Could not read version from package.json"
   log_info "Using version from package.json: $VERSION"
 fi
 
@@ -86,6 +91,16 @@ if ! echo "$VERSION" | grep -qE '^[0-9]+\.[0-9]+\.[0-9]+(-[a-zA-Z0-9._-]+)?$'; t
 fi
 
 TAG="v$VERSION"
+
+# ─── Release readiness gate ──────────────────────────────────────────────────
+log_step "Checking release readiness"
+
+if command -v bun >/dev/null 2>&1; then
+  bun scripts/checkReleaseReadiness.ts "$VERSION"
+else
+  die "bun is required to run release readiness check"
+fi
+log_success "Release readiness OK"
 
 # ─── Git status checks ────────────────────────────────────────────────────────
 log_step "Checking git status"
@@ -110,20 +125,20 @@ if git tag --list | grep -q "^${TAG}$"; then
   die "Tag '${TAG}' already exists. Bump the version in package.json first."
 fi
 
-# ─── Build ────────────────────────────────────────────────────────────────────
-log_step "Building project"
+# ─── Quality gate ─────────────────────────────────────────────────────────────
+log_step "Running release quality gate"
 
 if $DRY_RUN; then
-  log_warn "[dry-run] Skipping build"
+  log_warn "[dry-run] Skipping quality gate"
 else
   if command -v bun >/dev/null 2>&1; then
-    bun run build
+    bun run check:all
   elif command -v npm >/dev/null 2>&1; then
-    npm run build
+    npm run check:all
   else
     die "No package manager found (bun / npm)"
   fi
-  log_success "Build succeeded"
+  log_success "Quality gate passed"
 fi
 
 # ─── Generate changelog from git log ─────────────────────────────────────────

@@ -78,6 +78,20 @@ export interface StudyRecord {
 
 export type StudyRecordMap = Record<string, StudyRecord>
 
+export interface QuestionNote {
+  questionId: string
+  content: string
+  createdAt: number
+  updatedAt: number
+}
+
+export interface QuestionFlag {
+  questionId: string
+  starred: boolean
+  createdAt: number
+  updatedAt: number
+}
+
 export interface FilterState {
   modules: Module[]
   difficulties: Difficulty[]
