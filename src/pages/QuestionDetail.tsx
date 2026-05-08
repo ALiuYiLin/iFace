@@ -716,6 +716,7 @@ interface MyAnswerInputProps {
   questionText: string
   answerText: string
   onOpenAIPanel: () => void
+  onOpenNote?: () => void
   isAiEnabled: boolean
   onNoteSaved?: () => void
   /** When true the component is in "compact / inside answer card" mode */
@@ -727,6 +728,7 @@ function MyAnswerInput({
   questionText,
   answerText,
   onOpenAIPanel,
+  onOpenNote,
   isAiEnabled,
   onNoteSaved,
   compact = false,
@@ -1345,6 +1347,50 @@ function MyAnswerInput({
                 >
                   重新作答
                 </button>
+                {noteSaved && onOpenNote && (
+                  <button
+                    type="button"
+                    onClick={onOpenNote}
+                    style={{
+                      fontSize: 12,
+                      color: 'var(--text-2)',
+                      background: 'var(--surface-2)',
+                      border: '1px solid var(--border-subtle)',
+                      cursor: 'pointer',
+                      padding: '3px 8px',
+                      borderRadius: 6,
+                      transition: 'all 0.15s',
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: 4,
+                    }}
+                    onMouseEnter={(e) => {
+                      ;(e.currentTarget as HTMLElement).style.color = 'var(--primary)'
+                      ;(e.currentTarget as HTMLElement).style.borderColor =
+                        'rgba(var(--primary-rgb),0.25)'
+                    }}
+                    onMouseLeave={(e) => {
+                      ;(e.currentTarget as HTMLElement).style.color = 'var(--text-2)'
+                      ;(e.currentTarget as HTMLElement).style.borderColor = 'var(--border-subtle)'
+                    }}
+                  >
+                    <svg
+                      width="11"
+                      height="11"
+                      viewBox="0 0 24 24"
+                      fill="none"
+                      stroke="currentColor"
+                      strokeWidth="2.3"
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                    >
+                      <path d="M4 19.5V5a2 2 0 0 1 2-2h12v18H6a2 2 0 0 1-2-1.5z" />
+                      <path d="M8 7h6" />
+                      <path d="M8 11h8" />
+                    </svg>
+                    打开笔记
+                  </button>
+                )}
                 <button
                   type="button"
                   onClick={onOpenAIPanel}
@@ -1430,15 +1476,42 @@ interface QuestionNotesProps {
   questionId: string
   refreshKey: number
   embedded?: boolean
+  autoFocus?: boolean
   onContentStateChange?: (hasContent: boolean) => void
 }
 
 type NoteSaveStatus = 'idle' | 'saving' | 'saved' | 'error'
 
+const NOTE_TEMPLATES = [
+  { id: 'understanding', label: '理解', text: '## 我的理解\n- ' },
+  { id: 'pitfall', label: '易错', text: '## 易错点\n- ' },
+  { id: 'speech', label: '口述', text: '## 面试口述\n- ' },
+  { id: 'followup', label: '追问', text: '## 追问\n- ' },
+] as const
+
+function buildNoteInsertion(
+  content: string,
+  insertText: string,
+  start: number,
+  end: number,
+): { nextContent: string; nextCursor: number } {
+  const before = content.slice(0, start)
+  const after = content.slice(end)
+  const prefix = before.trim().length > 0 && !before.endsWith('\n\n') ? '\n\n' : ''
+  const suffix = after.trim().length > 0 && !after.startsWith('\n\n') ? '\n\n' : ''
+  const insertion = `${prefix}${insertText}${suffix}`
+
+  return {
+    nextContent: `${before}${insertion}${after}`,
+    nextCursor: before.length + insertion.length,
+  }
+}
+
 function QuestionNotes({
   questionId,
   refreshKey,
   embedded = false,
+  autoFocus = false,
   onContentStateChange,
 }: QuestionNotesProps) {
   const [content, setContent] = useState('')
@@ -1447,18 +1520,38 @@ function QuestionNotes({
   const [loading, setLoading] = useState(true)
   const [saveStatus, setSaveStatus] = useState<NoteSaveStatus>('idle')
   const [mode, setMode] = useState<'edit' | 'preview'>('edit')
+  const [speechError, setSpeechError] = useState<string | null>(null)
 
   const loadedContentRef = useRef('')
   const saveTimerRef = useRef<number | null>(null)
   const statusTimerRef = useRef<number | null>(null)
+  const textareaRef = useRef<HTMLTextAreaElement>(null)
+
+  const focusEditor = useCallback(() => {
+    window.setTimeout(() => textareaRef.current?.focus(), 0)
+  }, [])
+
+  const handleNoteSpeechTranscript = useCallback((transcript: string) => {
+    setContent((prev) => appendSpeechTranscript(prev, transcript))
+    setSpeechError(null)
+    window.setTimeout(() => textareaRef.current?.focus(), 0)
+  }, [])
+
+  const speech = useSpeechRecognition({
+    lang: 'zh-CN',
+    onFinalTranscript: handleNoteSpeechTranscript,
+    onError: setSpeechError,
+  })
 
   // biome-ignore lint/correctness/useExhaustiveDependencies: refreshKey intentionally reloads the IndexedDB note after AI feedback is appended.
   useEffect(() => {
     let cancelled = false
 
     if (saveTimerRef.current) window.clearTimeout(saveTimerRef.current)
+    speech.stop()
     setLoading(true)
     setSaveStatus('idle')
+    setSpeechError(null)
 
     getQuestionNote(questionId)
       .then((note: QuestionNote | undefined) => {
@@ -1485,7 +1578,12 @@ function QuestionNotes({
     return () => {
       cancelled = true
     }
-  }, [questionId, refreshKey, onContentStateChange])
+  }, [questionId, refreshKey, onContentStateChange, speech.stop])
+
+  useEffect(() => {
+    if (!autoFocus || loading || mode !== 'edit') return
+    focusEditor()
+  }, [autoFocus, focusEditor, loading, mode])
 
   useEffect(() => {
     return () => {
@@ -1535,6 +1633,33 @@ function QuestionNotes({
     }
   }, [content, createdAt, loading, onContentStateChange, questionId])
 
+  const handleModeChange = useCallback(
+    (nextMode: 'edit' | 'preview') => {
+      setMode(nextMode)
+      if (nextMode === 'edit') focusEditor()
+    },
+    [focusEditor],
+  )
+
+  const handleInsertTemplate = useCallback(
+    (insertText: string) => {
+      const editor = textareaRef.current
+      const start = editor?.selectionStart ?? content.length
+      const end = editor?.selectionEnd ?? content.length
+      const { nextContent, nextCursor } = buildNoteInsertion(content, insertText, start, end)
+
+      setMode('edit')
+      setContent(nextContent)
+      window.setTimeout(() => {
+        textareaRef.current?.focus()
+        textareaRef.current?.setSelectionRange(nextCursor, nextCursor)
+      }, 0)
+    },
+    [content],
+  )
+
+  const noteLength = content.trim().length
+
   const statusText =
     saveStatus === 'saving'
       ? '保存中…'
@@ -1553,7 +1678,8 @@ function QuestionNotes({
         padding: embedded ? 0 : 18,
         display: 'flex',
         flexDirection: 'column',
-        gap: 12,
+        gap: 10,
+        minHeight: embedded ? '100%' : undefined,
       }}
     >
       <div
@@ -1620,7 +1746,7 @@ function QuestionNotes({
               <button
                 key={item}
                 type="button"
-                onClick={() => setMode(item)}
+                onClick={() => handleModeChange(item)}
                 style={{
                   padding: '4px 8px',
                   borderRadius: 6,
@@ -1640,8 +1766,84 @@ function QuestionNotes({
         </div>
       </div>
 
+      {mode === 'edit' && (
+        <div
+          style={{
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'space-between',
+            gap: 8,
+            flexWrap: 'wrap',
+            padding: '7px 8px',
+            borderRadius: 10,
+            border: '1px solid var(--border-subtle)',
+            background: 'var(--surface-2)',
+          }}
+        >
+          <div style={{ display: 'flex', alignItems: 'center', gap: 6, flexWrap: 'wrap' }}>
+            {NOTE_TEMPLATES.map((template) => (
+              <button
+                key={template.id}
+                type="button"
+                onClick={() => handleInsertTemplate(template.text)}
+                disabled={loading}
+                title={`插入${template.label}段落`}
+                style={{
+                  padding: '4px 8px',
+                  borderRadius: 7,
+                  border: '1px solid var(--border-subtle)',
+                  background: 'var(--surface)',
+                  color: 'var(--text-2)',
+                  fontSize: 11,
+                  fontWeight: 500,
+                  cursor: loading ? 'default' : 'pointer',
+                  opacity: loading ? 0.5 : 1,
+                  transition: 'all 0.15s',
+                }}
+                onMouseEnter={(e) => {
+                  if (loading) return
+                  ;(e.currentTarget as HTMLElement).style.borderColor =
+                    'rgba(var(--primary-rgb),0.24)'
+                  ;(e.currentTarget as HTMLElement).style.color = 'var(--primary)'
+                }}
+                onMouseLeave={(e) => {
+                  ;(e.currentTarget as HTMLElement).style.borderColor = 'var(--border-subtle)'
+                  ;(e.currentTarget as HTMLElement).style.color = 'var(--text-2)'
+                }}
+              >
+                {template.label}
+              </button>
+            ))}
+          </div>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 6, minWidth: 0 }}>
+            {(speech.interimTranscript || speechError) && (
+              <span
+                title={speech.interimTranscript || speechError || undefined}
+                style={{
+                  maxWidth: 180,
+                  overflow: 'hidden',
+                  textOverflow: 'ellipsis',
+                  whiteSpace: 'nowrap',
+                  fontSize: 11,
+                  color: speechError ? 'var(--danger)' : 'var(--primary)',
+                }}
+              >
+                {speech.interimTranscript ? `正在识别：${speech.interimTranscript}` : speechError}
+              </span>
+            )}
+            <SpeechInputButton
+              supported={speech.supported}
+              listening={speech.listening}
+              disabled={loading}
+              onToggle={speech.toggle}
+            />
+          </div>
+        </div>
+      )}
+
       {mode === 'edit' ? (
         <textarea
+          ref={textareaRef}
           value={content}
           onChange={(e) => setContent(e.target.value)}
           disabled={loading}
@@ -1649,7 +1851,7 @@ function QuestionNotes({
           rows={6}
           style={{
             width: '100%',
-            minHeight: 140,
+            minHeight: embedded ? 'min(52dvh, 520px)' : 160,
             resize: 'vertical',
             padding: '12px 13px',
             borderRadius: 10,
@@ -1660,6 +1862,7 @@ function QuestionNotes({
             fontSize: 13,
             lineHeight: 1.65,
             fontFamily: 'var(--font-sans)',
+            flex: embedded ? 1 : undefined,
           }}
           onFocus={(e) => {
             e.currentTarget.style.borderColor = 'var(--primary)'
@@ -1674,7 +1877,7 @@ function QuestionNotes({
         <div
           className="prose"
           style={{
-            minHeight: 140,
+            minHeight: embedded ? 'min(52dvh, 520px)' : 160,
             padding: '12px 13px',
             borderRadius: 10,
             border: '1px solid var(--border-subtle)',
@@ -1687,7 +1890,7 @@ function QuestionNotes({
       ) : (
         <div
           style={{
-            minHeight: 140,
+            minHeight: embedded ? 'min(52dvh, 520px)' : 160,
             padding: '12px 13px',
             borderRadius: 10,
             border: '1px dashed var(--border)',
@@ -1713,9 +1916,9 @@ function QuestionNotes({
             color: 'var(--text-3)',
           }}
         >
-          <span>支持 Markdown，离开也会自动保存</span>
+          <span>{saveStatus === 'saving' ? '正在自动保存' : 'Markdown'}</span>
           <span style={{ fontVariantNumeric: 'tabular-nums', whiteSpace: 'nowrap' }}>
-            {content.trim().length.toLocaleString()} 字
+            {noteLength.toLocaleString()} 字
           </span>
         </div>
       )}
@@ -1886,12 +2089,15 @@ function NoteDrawer({
             minHeight: 0,
             overflowY: 'auto',
             padding: 16,
+            display: 'flex',
+            flexDirection: 'column',
           }}
         >
           <QuestionNotes
             questionId={question.id}
             refreshKey={refreshKey}
             embedded
+            autoFocus
             onContentStateChange={onContentStateChange}
           />
         </div>
@@ -3049,6 +3255,7 @@ export default function QuestionDetail() {
               questionText={question.question}
               answerText={question.answer}
               onOpenAIPanel={() => setAiDrawerOpen(true)}
+              onOpenNote={() => setNoteDrawerOpen(true)}
               isAiEnabled={isAiEnabled}
               onNoteSaved={handleNoteSaved}
             />
@@ -3223,6 +3430,7 @@ export default function QuestionDetail() {
                 questionText={question.question}
                 answerText={question.answer}
                 onOpenAIPanel={() => setAiDrawerOpen(true)}
+                onOpenNote={() => setNoteDrawerOpen(true)}
                 isAiEnabled={isAiEnabled}
                 onNoteSaved={handleNoteSaved}
                 compact
