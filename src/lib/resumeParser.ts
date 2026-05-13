@@ -9,6 +9,7 @@ type PdfTextItem = {
 }
 
 const MAX_RESUME_CHARS = 30_000
+const PDF_PARSE_BUFFER_CHARS = MAX_RESUME_CHARS + 2_000
 
 function normalizeExtractedText(text: string): string {
   return text
@@ -37,6 +38,7 @@ async function parsePdf(file: File): Promise<string> {
   const data = new Uint8Array(await file.arrayBuffer())
   const pdf = await pdfjs.getDocument({ data }).promise
   const pages: string[] = []
+  let extractedChars = 0
 
   for (let pageNumber = 1; pageNumber <= pdf.numPages; pageNumber++) {
     const page = await pdf.getPage(pageNumber)
@@ -48,7 +50,11 @@ async function parsePdf(file: File): Promise<string> {
       })
       .filter(Boolean)
       .join(' ')
-    if (text.trim()) pages.push(text)
+    if (text.trim()) {
+      pages.push(text)
+      extractedChars += text.length
+    }
+    if (extractedChars >= PDF_PARSE_BUFFER_CHARS) break
   }
 
   return pages.join('\n\n')

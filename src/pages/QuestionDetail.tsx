@@ -2575,7 +2575,7 @@ export default function QuestionDetail() {
     setAiInitialPrompt(null)
     setSessionFinished(false)
     setNoteDrawerOpen(false)
-    window.scrollTo({ top: 0, behavior: 'smooth' })
+    window.scrollTo({ top: 0, behavior: 'auto' })
     // Clear per-question session review guard so the new question starts fresh
     return () => {
       if (id) clearSessionReview(id)
@@ -2703,7 +2703,7 @@ export default function QuestionDetail() {
     setLastPressedKey(null)
     setAiInitialPrompt(null)
     setSessionFinished(false)
-    window.scrollTo({ top: 0, behavior: 'smooth' })
+    window.scrollTo({ top: 0, behavior: 'auto' })
     navigate(createPracticeSessionPath(sessionStats.retryIds[0], sessionStats.retryIds))
   }, [navigate, sessionStats.retryIds, shouldAutoRevealAnswer])
 

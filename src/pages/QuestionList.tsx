@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { memo, useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { Link, useNavigate, useSearchParams } from 'react-router-dom'
 import { Button, EmptyState, Skeleton } from '@/components/ui'
 import { applyFilters, type SortKey, useQuestions } from '@/hooks/useQuestions'
@@ -613,7 +613,7 @@ interface QuestionCardProps {
   noteSnippet?: string
 }
 
-function QuestionCard({
+const QuestionCard = memo(function QuestionCard({
   question: q,
   status,
   index,
@@ -891,7 +891,7 @@ function QuestionCard({
       </svg>
     </Link>
   )
-}
+})
 
 // ─── Skeleton ────────────────────────────────────────────────────────────────
 
@@ -1401,7 +1401,10 @@ export default function QuestionList() {
   }, [currentSessionIds, navigate])
 
   // ── Paginated ──
-  const pagedQuestions = filteredQuestions.slice(0, page * PAGE_SIZE)
+  const pagedQuestions = useMemo(
+    () => filteredQuestions.slice(0, page * PAGE_SIZE),
+    [filteredQuestions, page],
+  )
   const hasMore = pagedQuestions.length < filteredQuestions.length
 
   // ── Load more on scroll ──

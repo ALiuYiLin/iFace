@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { MarkdownRenderer } from '@/components/ui/LazyMarkdownRenderer'
+import { useBufferedText } from '@/hooks/useBufferedText'
 import {
   type AIMessage,
   buildQuestionSystemSuffix,
@@ -727,7 +728,11 @@ export function AIPanel({
   const isStreaming = streaming && streamingQuestionId === questionId
 
   const [input, setInput] = useState('')
-  const [streamingText, setStreamingText] = useState('')
+  const {
+    text: streamingText,
+    appendText: appendStreamingText,
+    resetText: resetStreamingText,
+  } = useBufferedText()
   const [error, setError] = useState<string | null>(null)
   const [copiedMessageId, setCopiedMessageId] = useState<string | null>(null)
 
@@ -736,42 +741,9 @@ export function AIPanel({
   const inputRef = useRef<HTMLTextAreaElement>(null)
   // Track whether user has manually scrolled up
   const userScrolledUp = useRef(false)
-  const streamingTextBufferRef = useRef('')
-  const streamingTextFrameRef = useRef<number | null>(null)
   const lastInitialPromptIdRef = useRef<string | null>(null)
   const isStreamingRef = useRef(isStreaming)
   isStreamingRef.current = isStreaming
-
-  const flushStreamingText = useCallback(() => {
-    streamingTextFrameRef.current = null
-    setStreamingText(streamingTextBufferRef.current)
-  }, [])
-
-  const appendStreamingText = useCallback(
-    (chunk: string) => {
-      streamingTextBufferRef.current += chunk
-      if (streamingTextFrameRef.current !== null) return
-      streamingTextFrameRef.current = window.requestAnimationFrame(flushStreamingText)
-    },
-    [flushStreamingText],
-  )
-
-  const resetStreamingText = useCallback(() => {
-    streamingTextBufferRef.current = ''
-    if (streamingTextFrameRef.current !== null) {
-      window.cancelAnimationFrame(streamingTextFrameRef.current)
-      streamingTextFrameRef.current = null
-    }
-    setStreamingText('')
-  }, [])
-
-  useEffect(() => {
-    return () => {
-      if (streamingTextFrameRef.current !== null) {
-        window.cancelAnimationFrame(streamingTextFrameRef.current)
-      }
-    }
-  }, [])
 
   // Detect manual scroll: if user scrolls up during streaming, pause auto-scroll
   const handleScroll = useCallback(() => {
