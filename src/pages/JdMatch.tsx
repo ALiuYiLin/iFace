@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { SettingsDrawer } from '@/components/layout/SettingsDrawer'
-import { Button, Spinner } from '@/components/ui'
+import { Badge, Button, Spinner } from '@/components/ui'
 import { MarkdownRenderer } from '@/components/ui/MarkdownRenderer'
 import { type ChatCompletionMessage, requestChatCompletionStream } from '@/lib/aiClient'
 import { deleteJdMatchReport, getAllJdMatchReports, putJdMatchReport } from '@/lib/db'
@@ -330,7 +330,9 @@ export default function JdMatch() {
             <section className="jd-panel">
               <div className="jd-panel-header">
                 <h2>诊断材料</h2>
-                <span>{aiReady ? config.model : 'AI 未配置'}</span>
+                <Badge variant={aiReady ? 'success' : 'warning'}>
+                  {aiReady ? config.model : 'AI 未配置'}
+                </Badge>
               </div>
 
               <div className="jd-form">
