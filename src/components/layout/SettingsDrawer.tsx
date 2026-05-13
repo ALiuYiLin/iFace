@@ -609,6 +609,7 @@ export function SettingsDrawer({ open, onClose }: SettingsDrawerProps) {
 
   const importRef = useRef<HTMLInputElement>(null)
   const drawerRef = useRef<HTMLDivElement>(null)
+  const lastFocusedElementRef = useRef<HTMLElement | null>(null)
 
   // Load category map when drawer opens (needed for visibility toggles)
   useEffect(() => {
@@ -704,6 +705,26 @@ export function SettingsDrawer({ open, onClose }: SettingsDrawerProps) {
     document.body.style.overflow = 'hidden'
     return () => {
       document.body.style.overflow = previousOverflow
+    }
+  }, [open])
+
+  useEffect(() => {
+    if (!open) return
+
+    lastFocusedElementRef.current =
+      document.activeElement instanceof HTMLElement ? document.activeElement : null
+
+    const frame = window.requestAnimationFrame(() => {
+      drawerRef.current?.focus({ preventScroll: true })
+    })
+
+    return () => {
+      window.cancelAnimationFrame(frame)
+      const elementToRestore = lastFocusedElementRef.current
+      if (elementToRestore?.isConnected) {
+        elementToRestore.focus({ preventScroll: true })
+      }
+      lastFocusedElementRef.current = null
     }
   }, [open])
 
@@ -1038,6 +1059,7 @@ export function SettingsDrawer({ open, onClose }: SettingsDrawerProps) {
         role="dialog"
         aria-modal="true"
         aria-label="设置"
+        tabIndex={-1}
         style={{
           position: 'fixed',
           top: 0,
@@ -1053,6 +1075,7 @@ export function SettingsDrawer({ open, onClose }: SettingsDrawerProps) {
           flexDirection: 'column',
           animation: 'drawer-slide-in 0.22s var(--ease-out) both',
           overflow: 'hidden',
+          outline: 'none',
         }}
       >
         {/* Header */}
@@ -1241,6 +1264,8 @@ export function SettingsDrawer({ open, onClose }: SettingsDrawerProps) {
             flex: 1,
             minHeight: 0,
             overflowY: 'auto',
+            overscrollBehavior: 'contain',
+            WebkitOverflowScrolling: 'touch',
             padding: '20px',
             display: 'flex',
             flexDirection: 'column',
