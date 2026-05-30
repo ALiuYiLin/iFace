@@ -90,29 +90,16 @@ export const BUILTIN_CATEGORIES: readonly BuiltinCategory[] = [
       'java/concurrency.json',
       'java/jvm.json',
       'java/spring.json',
-      'network/basics.json',
-      'network/tcp.json',
-      'network/http.json',
-      'network/security.json',
-      'network/performance.json',
-      'network/modern.json',
-      'mysql/basics.json',
-      'mysql/index.json',
-      'mysql/transaction.json',
-      'mysql/reliability.json',
-      'mysql/optimization.json',
-      'redis/basics.json',
-      'redis/cache.json',
-      'redis/persistence.json',
-      'redis/cluster.json',
-      'redis/ops.json',
+      'java/network.json',
+      'java/mysql.json',
+      'java/redis.json',
     ],
   },
 ] as const
 
 /** Flat list of every built-in file path across all categories (for legacy compat). */
 export const BUILTIN_MODULE_FILES: readonly string[] = BUILTIN_CATEGORIES.flatMap((c) => c.files)
-export const BUILTIN_QUESTIONS_VERSION = '0.16.0'
+export const BUILTIN_QUESTIONS_VERSION = '0.17.0'
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
