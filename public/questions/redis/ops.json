@@ -1,0 +1,110 @@
+[
+  {
+    "id": "redis-ops-001",
+    "module": "Redis",
+    "difficulty": 2,
+    "question": "Redis 慢查询、LATENCY、MONITOR、INFO 分别用于排查什么问题？",
+    "answer": "### SLOWLOG\n\nSLOWLOG 记录执行时间超过阈值的命令，适合找慢命令和阻塞风险。它记录的是命令执行时间，不包含网络传输和客户端排队时间，所以“客户端很慢但 SLOWLOG 没记录”也很常见。\n\n### LATENCY\n\nLATENCY 系列用于分析 Redis 内部延迟事件，例如 fork、AOF fsync、过期删除、命令阻塞等。它更适合看延迟尖刺来自哪个 Redis 内部环节。\n\n### MONITOR\n\nMONITOR 会实时打印所有命令，排查某个异常访问来源时很有用，但开销非常大，生产只能短时间、低峰、谨慎使用。很多场景更应该依赖客户端日志或代理采样。\n\n### INFO\n\nINFO 是实例体检入口。memory 看内存和碎片，stats 看命中、淘汰、过期，clients 看连接和缓冲区，persistence 看 RDB/AOF，replication 看主从，commandstats 看命令分布。\n\n### 排查口径\n\n慢命令看 SLOWLOG，延迟尖刺看 LATENCY，访问来源短时抽样看 MONITOR，实例整体状态看 INFO。不要只盯 QPS，Redis 的问题常出在大 key、缓冲区、fork、fsync 和客户端使用方式。",
+    "tags": ["Redis", "Redis性能与运维"],
+    "source": "精选"
+  },
+  {
+    "id": "redis-ops-002",
+    "module": "Redis",
+    "difficulty": 2,
+    "question": "Redis 内存碎片和主动整理如何处理？",
+    "answer": "### 内存碎片是什么\n\nRedis 释放对象后，内存分配器不一定立刻把内存还给操作系统。used_memory 下降了，但 used_memory_rss 仍很高，就会表现为碎片。碎片率通常看 mem_fragmentation_ratio。\n\n碎片来自频繁创建删除、大小不一的对象、大 key 拆改、过期淘汰和内存分配器行为。它不是 Redis “泄漏” 的唯一证据，需要结合 key 数和业务写入变化判断。\n\n### 主动整理\n\nRedis 支持 active defrag，后台逐步整理内存碎片。它能降低 RSS，但会消耗 CPU。适合碎片率长期偏高且 CPU 有余量的实例。\n\n### 处理方式\n\n先确认是不是正常 fork/COW、RDB/AOF rewrite、复制缓冲或客户端缓冲导致 RSS 升高。再看碎片率和 active defrag 配置。严重时可以主从切换、重启从库重建内存布局，再切流。\n\n### 预防\n\n控制大 key，避免频繁写入巨大对象，合理设置 TTL 和淘汰策略。内存规划要看 RSS，不只看 used_memory，否则系统层面仍可能 OOM。",
+    "tags": ["Redis", "Redis性能与运维"],
+    "source": "精选"
+  },
+  {
+    "id": "redis-ops-003",
+    "module": "Redis",
+    "difficulty": 2,
+    "question": "maxmemory 与 LRU、LFU、TTL 淘汰策略如何选择？",
+    "answer": "### maxmemory 的作用\n\nmaxmemory 限制 Redis 可使用内存。达到上限后，Redis 会根据 maxmemory-policy 决定是淘汰 key，还是拒绝写入。没有设置上限时，实例可能把机器内存吃满，引发 swap 或 OOM。\n\n### 常见淘汰策略\n\nallkeys-lru 在所有 key 中淘汰最近最少使用的 key，适合纯缓存。volatile-lru 只淘汰设置 TTL 的 key，适合不希望无 TTL 数据被删的场景。\n\nallkeys-lfu 按访问频率淘汰，适合热点稳定的缓存。volatile-ttl 优先淘汰 TTL 更短的 key。noeviction 达到内存上限后写命令报错，适合不能接受自动丢 key 的重要状态。\n\n### 怎么选\n\n纯缓存优先 allkeys-lru 或 allkeys-lfu。混合实例要谨慎，最好不要把缓存和重要状态放同一个 Redis。验证码、会话这类必须过期的数据可以使用 volatile 系列，但要确认所有可淘汰 key 都设置 TTL。\n\n### 风险\n\n淘汰不是删除冷数据那么简单。热 key 如果估算错误也可能被淘汰，导致击穿。要监控 evicted_keys、used_memory、命中率和数据库回源压力。",
+    "tags": ["Redis", "Redis性能与运维"],
+    "source": "精选"
+  },
+  {
+    "id": "redis-ops-004",
+    "module": "Redis",
+    "difficulty": 2,
+    "question": "为什么禁止在生产使用 KEYS、FLUSHALL、大范围删除等危险操作？",
+    "answer": "### KEYS\n\nKEYS 会遍历整个 keyspace，大实例上会阻塞主线程。生产如果为了查几个 key 执行 KEYS *，可能让所有业务请求排队。\n\n### FLUSHALL / FLUSHDB\n\nFLUSHALL 和 FLUSHDB 会清空实例或库。即使用异步模式，也会造成业务数据瞬间消失、缓存雪崩、数据库回源暴涨。误操作还会被 AOF 和主从复制传播。\n\n### 大范围删除\n\nDEL 一个大 key 或批量删除大量 key，会同步释放内存并阻塞。大集合全量读取后再删除，也会造成网络和客户端内存压力。\n\n### 生产替代\n\n遍历用 SCAN，删除大 key 用 UNLINK 或分批删除集合元素，清理按业务前缀限速执行。危险命令应通过 rename-command、ACL、堡垒机和审批流程限制。\n\n### 原则\n\nRedis 是单线程执行命令，危险命令的破坏不是“慢一点”而是“所有人都等它”。生产操作要有范围、限速、回滚和监控。",
+    "tags": ["Redis", "Redis性能与运维"],
+    "source": "精选"
+  },
+  {
+    "id": "redis-ops-005",
+    "module": "Redis",
+    "difficulty": 2,
+    "question": "DEL、UNLINK、lazyfree 在删除大 key 时有什么区别？",
+    "answer": "### DEL\n\nDEL 会删除 key 并同步释放内存。小 key 用 DEL 没问题；大 Hash、大 Set、大 ZSet 或大 String 用 DEL，释放内存可能耗时很久，阻塞主线程。\n\n### UNLINK\n\nUNLINK 会先把 key 从 keyspace 解除关联，真正释放内存交给后台线程异步处理。对客户端来说 key 很快不可见，对 Redis 主线程影响更小。删除大 key 时优先用 UNLINK。\n\n### lazyfree\n\nlazyfree 是一组异步释放配置，例如 lazyfree-lazy-eviction、lazyfree-lazy-expire、lazyfree-lazy-server-del。它让淘汰、过期或服务端删除也能尽量异步释放。\n\n### 注意事项\n\n异步释放不是没有成本，只是把成本转移到后台线程。大量 UNLINK 仍会消耗 CPU 和内存回收资源。迁移或清理大 key 时要分批、限速，并监控 lazyfree_pending_objects、延迟和内存变化。",
+    "tags": ["Redis", "Redis性能与运维"],
+    "source": "精选"
+  },
+  {
+    "id": "redis-ops-006",
+    "module": "Redis",
+    "difficulty": 2,
+    "question": "连接数、客户端缓冲区、输出缓冲区膨胀如何影响稳定性？",
+    "answer": "### 连接数\n\n连接数过多会消耗文件描述符、内存和事件循环处理能力。连接池配置不当、短连接风暴、客户端泄漏连接都会让 Redis 不稳定。\n\nmaxclients 只是上限，调大不能解决慢命令和请求堆积。应用侧连接池要限制最大连接数和超时。\n\n### 客户端缓冲区\n\nRedis 为每个客户端维护输入/输出缓冲区。客户端发送太快、Redis 处理不过来，或客户端读取响应太慢，缓冲区会膨胀，占用大量内存。\n\n大 key 查询、Pub/Sub 慢订阅者、网络抖动都容易撑大输出缓冲区。达到 client-output-buffer-limit 后，Redis 会断开连接。\n\n### 稳定性影响\n\n缓冲区膨胀会让 used_memory 快速上涨，甚至触发淘汰或 OOM。慢客户端还可能拖累网络事件处理，造成整体延迟上升。\n\n### 排查\n\n看 INFO clients、CLIENT LIST、blocked_clients、client_recent_max_output_buffer、连接来源和命令分布。治理上限制大响应命令，设置合理缓冲区上限，客户端及时消费响应，连接池不要无限扩张。",
+    "tags": ["Redis", "Redis性能与运维"],
+    "source": "精选"
+  },
+  {
+    "id": "redis-ops-007",
+    "module": "Redis",
+    "difficulty": 3,
+    "question": "Redis CPU 飙高可能由哪些命令、数据结构或网络因素导致？",
+    "answer": "### 命令导致 CPU 高\n\n大范围命令最常见：KEYS、SORT、SUNION 大集合、ZRANGE 大范围、HGETALL 大 Hash、复杂 Lua、批量过大的 pipeline。它们会让主线程长时间执行，其他请求排队。\n\n### 数据结构导致 CPU 高\n\n大 key、热 key、编码转换、过期 key 集中清理、淘汰策略频繁触发，都会推高 CPU。大 ZSet 排名和范围操作、巨大 Hash 全量读取尤其常见。\n\n### 网络和客户端因素\n\n请求包很多、响应很大、连接数过多、TLS 开销、慢客户端输出缓冲区膨胀，也会让 CPU 花在协议处理和网络读写上。Redis 6+ I/O 多线程只对这类问题有帮助，对慢命令帮助有限。\n\n### 排查路径\n\n先看 INFO commandstats、SLOWLOG、LATENCY、top、网络流量和客户端来源。再抽样 key 大小和热点。结论要落到具体命令、具体 key 模式和具体客户端，不要只说 Redis CPU 高。",
+    "tags": ["Redis", "Redis性能与运维"],
+    "source": "精选"
+  },
+  {
+    "id": "redis-ops-008",
+    "module": "Redis",
+    "difficulty": 3,
+    "question": "Redis 集群热点槽、倾斜数据和跨 slot 操作如何治理？",
+    "answer": "### 热点槽\n\nRedis Cluster 按 slot 分片，但如果某些热门 key 都在同一个 slot，这个节点仍会成为瓶颈。hash tag 使用不当也会把大量 key 强制放到同槽。\n\n治理方式是拆热点 key、复制读 key、本地缓存、调整 hash tag 设计，或把业务分片键设计得更均匀。\n\n### 倾斜数据\n\n槽数量均匀不代表内存均匀。某些 slot 里可能有大 key 或大量 key，导致节点内存倾斜。扩容 resharding 前要看每个节点 used_memory、key 数、大 key 和流量，而不是只看 slot 数。\n\n### 跨 slot 操作\n\nCluster 下多 key 命令要求同槽。MGET、Lua、多 key 事务如果跨 slot 会失败。可以用 hash tag 保证同一业务实体落同槽，例如 cart:{userId}:items 和 cart:{userId}:meta。\n\n### 治理原则\n\n先从 key 设计避免倾斜，再用监控发现热点槽，最后通过 resharding 和业务拆分调整。不要把所有相关 key 都放同一个 hash tag，否则解决了多 key 命令，却制造了热点槽。",
+    "tags": ["Redis", "Redis性能与运维"],
+    "source": "精选"
+  },
+  {
+    "id": "redis-ops-009",
+    "module": "Redis",
+    "difficulty": 3,
+    "question": "Redis 监控告警应覆盖哪些核心指标和阈值？",
+    "answer": "### 实例指标\n\nRedis 监控要覆盖 CPU、内存、RSS、碎片率、连接数、阻塞客户端、网络输入输出、QPS、命令耗时和错误数。内存要同时看 used_memory、used_memory_rss、maxmemory、evicted_keys。\n\n### 数据指标\n\n关注 keyspace 命中率、过期 key、淘汰 key、大 key、热 key、key 数增长和各业务前缀占比。缓存命中率下降往往比 Redis 自身报错更早暴露问题。\n\n### 持久化和复制\n\n持久化看 RDB/AOF 状态、fork 耗时、rewrite 状态、fsync 延迟和失败次数。复制看主从延迟、复制偏移、全量同步次数、backlog 使用和从库状态。\n\n### 告警阈值\n\n阈值要按业务基线设置。常见告警包括：内存超过 80% 或持续淘汰、P99 延迟升高、慢命令突增、连接数接近上限、复制延迟超过读一致性要求、fork 耗时异常、AOF/RDB 失败。\n\n### 最重要的原则\n\n监控要能定位到业务 key 和客户端。只知道 Redis 延迟高，不知道是谁打的、打了什么命令，处理效率会很低。",
+    "tags": ["Redis", "Redis性能与运维"],
+    "source": "精选"
+  },
+  {
+    "id": "redis-ops-010",
+    "module": "Redis",
+    "difficulty": 3,
+    "question": "Redis 版本升级、参数变更和数据迁移如何安全实施？",
+    "answer": "### 版本升级\n\n升级前先读 release notes，确认命令兼容性、配置变更、持久化格式、客户端协议和已知问题。测试环境要用线上 RDB/AOF 样本启动验证，再跑核心业务回归。\n\n生产升级优先从从库或非核心节点开始，观察复制、延迟、内存和慢命令，再逐步切主或滚动升级。不要所有节点同时升级。\n\n### 参数变更\n\n参数要区分可动态 CONFIG SET 和必须重启生效。maxmemory、淘汰策略、AOF、lazyfree、client buffer 这类变更会影响稳定性，必须有基线和回滚值。\n\n### 数据迁移\n\n迁移要先评估数据量、大 key、TTL、slot 分布和写入流量。常见方式有主从同步、DUMP/RESTORE、redis-shake、应用双写、Cluster resharding。迁移期间要限速并校验 key 数、抽样值和业务指标。\n\n### 安全实施\n\n所有变更都要有灰度、监控、回滚和暂停条件。Redis 变更看似只是参数或节点操作，实际可能放大到数据库回源、缓存雪崩和应用超时。",
+    "tags": ["Redis", "Redis性能与运维", "安全"],
+    "source": "精选"
+  },
+  {
+    "id": "redis-ops-011",
+    "module": "Redis",
+    "difficulty": 3,
+    "question": "Redis 安全配置应覆盖哪些方面？",
+    "answer": "### 访问控制\n\nRedis 不应该直接暴露公网。要绑定内网地址，使用防火墙或安全组限制来源。开启 ACL，按应用分配最小权限账号，禁用或限制高危命令。\n\n### 认证和加密\n\n设置强密码或 ACL 用户密码。跨不可信网络访问时启用 TLS 或通过安全隧道。密码要进入密钥管理系统，不要写进仓库。\n\n### 危险命令\n\nFLUSHALL、FLUSHDB、CONFIG、SHUTDOWN、KEYS、EVAL 等命令要按环境限制。可以用 ACL 禁止，或 rename-command 降低误操作风险。\n\n### 运维审计\n\n生产操作应通过堡垒机、审计日志和审批流程。客户端连接、失败认证、异常命令、配置变更都应可追踪。\n\n### 数据安全\n\n持久化文件、备份文件也要控制权限和加密存储。Redis 里不要放明文敏感信息，至少要设置 TTL、脱敏或加密。安全配置的核心是：网络不暴露、账号最小权、命令有限制、操作可审计。",
+    "tags": ["Redis", "Redis性能与运维", "安全"],
+    "source": "精选"
+  },
+  {
+    "id": "redis-ops-012",
+    "module": "Redis",
+    "difficulty": 3,
+    "question": "Redis 容量规划如何估算内存、QPS、带宽和副本成本？",
+    "answer": "### 内存估算\n\n容量规划先估算 key 数、value 平均大小、数据结构开销、对象元数据、过期字典、复制缓冲、客户端缓冲和内存碎片。不能只按 value 原始字节数算。\n\n例如一个小 String 的实际占用可能远大于业务值长度；ZSet 还要考虑 dict 和 skiplist 双结构。规划时要用压测数据或 MEMORY USAGE 抽样校准。\n\n### QPS 和延迟\n\n估算读写 QPS、峰值倍数、命令复杂度、pipeline 使用方式和热点分布。10 万 QPS 的 GET 和 10 万 QPS 的大 ZRANGE 完全不是一回事。容量要按 P95/P99 延迟和单节点 CPU 上限规划。\n\n### 带宽\n\nRedis 经常被响应大小打满带宽。要估算请求和响应字节数、复制流量、AOF/RDB 传输、Cluster 迁移和备份流量。大 key 和批量读取会让带宽成为瓶颈。\n\n### 副本成本\n\n一主两从不是多两份可用性这么简单，而是内存乘三、网络复制乘多份、故障同步和备份成本都增加。跨机房副本还要考虑延迟和带宽费用。\n\n### 规划结论\n\n给 Redis 留足余量：内存不要长期逼近 maxmemory，CPU 不要按平均值打满，网络要能承受复制和故障恢复。容量规划要包含扩容阈值和大 key/热 key 治理策略。",
+    "tags": ["Redis", "Redis性能与运维"],
+    "source": "精选"
+  }
+]

@@ -1,0 +1,110 @@
+[
+  {
+    "id": "mysql-rel-001",
+    "module": "MySQL",
+    "difficulty": 2,
+    "question": "redo log、undo log、binlog 分别在何时写入、解决什么问题？",
+    "answer": "### 三种日志各管一件事\n\nredo log 是 InnoDB 的物理重做日志，保证已提交修改在崩溃后能恢复。undo log 记录旧版本，支持回滚和 MVCC。binlog 是 Server 层逻辑日志，服务复制、审计和按时间点恢复。\n\n| 日志 | 主要作用 | 典型使用者 |\n| --- | --- | --- |\n| redo log | 崩溃恢复、持久性 | InnoDB |\n| undo log | 回滚、一致性读 | InnoDB |\n| binlog | 主从复制、PITR | MySQL Server、备份系统 |\n\n### 写入时机\n\n事务修改行前会产生 undo，修改数据页后产生 redo。提交时，redo 和 binlog 通过两阶段提交协调：redo prepare，写 binlog，再 redo commit。这样崩溃恢复时能判断事务到底应不应该提交。\n\n### 常见误区\n\nbinlog 不是崩溃恢复的主力，redo 才是；redo 不是复制日志，binlog 才是；undo 不是备份日志，它主要用于回滚和提供旧版本。三者职责不同，但一次事务会同时牵涉它们。",
+    "tags": ["MySQL", "MySQL日志与高可用"],
+    "source": "精选"
+  },
+  {
+    "id": "mysql-rel-002",
+    "module": "MySQL",
+    "difficulty": 2,
+    "question": "两阶段提交如何保证 redo log 和 binlog 的一致性？",
+    "answer": "### 问题背景\n\nInnoDB 的 redo log 和 Server 层的 binlog 分属两套系统。如果只写 redo 没写 binlog，主库恢复后有这笔数据，从库却永远复制不到；如果只写 binlog 没写 redo，恢复后主库没有这笔数据，从库可能有，都会造成不一致。\n\n### 两阶段提交流程\n\n提交时大致分三步：\n\n1. InnoDB 写 redo log，并标记为 prepare。\n2. Server 写 binlog，并按 sync_binlog 策略刷盘。\n3. InnoDB 把 redo log 标记为 commit。\n\n崩溃恢复时，如果看到 redo 是 prepare，就去检查对应 binlog 是否完整。binlog 完整则提交事务，不完整则回滚。\n\n### 为什么有效\n\nbinlog 变成了判断 prepare 事务是否最终提交的依据。这样 redo 和 binlog 不再各自决定结果，而是通过 prepare/commit 状态和 binlog 完整性形成一致结论。\n\n### 配置影响\n\ninnodb_flush_log_at_trx_commit 和 sync_binlog 决定提交时刷盘强度。双 1 最安全，但性能成本更高；降低刷盘频率能提高吞吐，但宕机时可能丢最近事务或复制日志。",
+    "tags": ["MySQL", "MySQL日志与高可用"],
+    "source": "精选"
+  },
+  {
+    "id": "mysql-rel-003",
+    "module": "MySQL",
+    "difficulty": 2,
+    "question": "MySQL 崩溃恢复流程如何利用 redo log 和 undo log？",
+    "answer": "### 崩溃恢复目标\n\nMySQL 崩溃后，内存里的脏页可能还没刷到磁盘，磁盘页可能落后于已提交事务。恢复要做到：已提交的改动补回来，未提交的改动撤回去。\n\n### redo 重放\n\nInnoDB 启动时先扫描 redo log。对于已经提交、但数据页还没落盘的修改，按 redo 重放到数据页。这个过程让数据库不必每次提交都把所有数据页刷盘，只要 redo 可靠即可。\n\n### undo 回滚\n\n崩溃时还有未提交事务，它们可能已经改过数据页。恢复阶段会根据 undo log 回滚这些事务，保证不会留下半个事务。\n\n### 和 binlog 的关系\n\n遇到 redo prepare 状态的事务时，还要看 binlog 是否完整。binlog 完整说明事务应提交，binlog 不完整说明应回滚。这就是两阶段提交在恢复时发挥作用的地方。\n\n### 工程关注\n\n恢复时间取决于 redo 量、脏页情况、大事务和硬件 IO。大量长事务、大批量写入、异常关机会拉长恢复。生产要通过备份演练和故障拉起测试确认 RTO，而不是只相信配置。",
+    "tags": ["MySQL", "MySQL日志与高可用"],
+    "source": "精选"
+  },
+  {
+    "id": "mysql-rel-004",
+    "module": "MySQL",
+    "difficulty": 2,
+    "question": "binlog row、statement、mixed 格式有什么区别？",
+    "answer": "### statement\n\nstatement 记录原始 SQL。优点是日志小、可读性强；缺点是某些非确定性语句复制不安全，例如 now()、uuid()、limit 无稳定排序、触发器或函数行为差异等。\n\n### row\n\nrow 记录每行变更前后的数据，复制最准确，也是现代生产更常用的格式。缺点是批量更新会产生大量日志，binlog 体积和网络传输压力更大。配合 binlog_row_image 可控制记录列的完整程度。\n\n### mixed\n\nmixed 默认用 statement，遇到可能不安全的语句切换到 row。它试图折中，但排查时不如统一 row 简单。\n\n### 怎么选\n\n主从复制、数据订阅、审计、CDC 场景通常选 row，因为下游需要确定的行级变化。statement 适合对日志体积极敏感且 SQL 可控的老场景。现在多数业务优先 row，再通过归档、压缩、保留周期和拆分大事务控制成本。\n\n### 一个实际点\n\nrow 格式下，大事务会生成很大的 binlog event，可能造成复制延迟和恢复压力。不要把百万行更新放进一个事务里，应该分批提交。",
+    "tags": ["MySQL", "MySQL日志与高可用"],
+    "source": "精选"
+  },
+  {
+    "id": "mysql-rel-005",
+    "module": "MySQL",
+    "difficulty": 2,
+    "question": "主从复制的 dump、relay log、SQL thread 流程是怎样的？",
+    "answer": "### 复制链路\n\n主从复制的核心是：主库写 binlog，从库拉取 binlog 存成 relay log，再由从库 SQL 线程重放。\n\n1. 主库事务提交后写入 binlog。\n2. 从库 I/O 线程连接主库，请求指定位置或 GTID 后的日志。\n3. 主库 dump thread 把 binlog event 发给从库。\n4. 从库 I/O 线程写入 relay log。\n5. 从库 SQL thread 或 worker 读取 relay log 并执行。\n\n### 延迟在哪里产生\n\n主库写入太快、网络慢、从库 IO 慢、SQL 线程重放慢、从库有锁等待、大事务过大，都可能产生复制延迟。延迟不是一个原因，而是链路上任何一段积压。\n\n### 并行复制\n\nMySQL 支持从库并行回放，但并行度受事务依赖关系限制。同一个库、同一组冲突行上的事务很难完全并行。大事务也会拖住后续事务。\n\n### 可靠性关注\n\n复制不是备份。误删数据会被复制到从库。主从能提高读扩展和故障切换能力，但仍需要独立备份、binlog 保留和恢复演练。",
+    "tags": ["MySQL", "MySQL日志与高可用"],
+    "source": "精选"
+  },
+  {
+    "id": "mysql-rel-006",
+    "module": "MySQL",
+    "difficulty": 2,
+    "question": "半同步复制、GTID 和复制延迟如何影响高可用？",
+    "answer": "### 半同步复制\n\n异步复制下，主库提交成功后不等从库确认，主库宕机时可能丢失尚未传到从库的事务。半同步要求至少一个从库收到 binlog 并确认后，主库才向客户端返回成功。\n\n半同步降低丢数据风险，但不是绝对不丢。它确认的是从库收到日志，不一定已经重放完成；网络抖动时还会影响主库提交延迟，并可能退化为异步。\n\n### GTID\n\nGTID 给每个事务一个全局唯一编号，让复制位点不再只是 file + position。它简化主从切换、故障恢复和跳过已执行事务，减少人工找 binlog 位点的错误。\n\n### 复制延迟\n\n复制延迟会影响读写分离。用户刚写完主库，马上读从库可能读到旧数据。延迟还会影响故障切换：如果从库落后太多，提升它为主库可能丢事务。\n\n### 高可用取舍\n\n半同步提高 RPO，GTID 降低切换复杂度，延迟监控决定能不能安全读从和切主。三者要一起看，不能只打开半同步就认为高可用完成了。",
+    "tags": ["MySQL", "MySQL日志与高可用"],
+    "source": "精选"
+  },
+  {
+    "id": "mysql-rel-007",
+    "module": "MySQL",
+    "difficulty": 3,
+    "question": "主从切换、读写分离和延迟读如何避免读到旧数据？",
+    "answer": "### 读到旧数据的根因\n\n读写分离中，写请求落主库，读请求走从库。从库通过复制异步或半同步追主库，只要存在延迟，用户写完马上读从库就可能看不到刚写的数据。\n\n### 常用规避方式\n\n- 写后读主：用户完成写操作后，一段时间内或当前会话内读主库。\n- 按延迟路由：从库延迟超过阈值时摘除或降权。\n- 关键读强制主库：订单支付结果、余额、权限变更等读主。\n- 使用 GTID/位点等待：读前等待从库追到某个事务位点。\n- 前端或服务端读自己的写：把刚写结果短期缓存到会话上下文。\n\n### 主从切换风险\n\n切主前要确认候选从库的 GTID 集合和延迟，避免提升一个落后的从库。切换后旧主恢复时不能直接加入，必须确认数据方向，防止双主写入或数据回滚。\n\n### 设计口径\n\n不是所有读都需要强一致。商品详情、列表、统计可以容忍短暂旧数据；支付状态、库存结果、账户余额通常不能。读写分离规则应该按业务一致性分级，而不是简单按 SELECT 全部分流到从库。",
+    "tags": ["MySQL", "MySQL日志与高可用"],
+    "source": "精选"
+  },
+  {
+    "id": "mysql-rel-008",
+    "module": "MySQL",
+    "difficulty": 3,
+    "question": "MHA、Orchestrator、MGR/InnoDB Cluster 各自解决什么问题？",
+    "answer": "### MHA\n\nMHA 是传统 MySQL 主从架构下的故障切换工具。它负责探测主库故障、选择最合适从库提升为新主、尽量补齐 binlog、让其他从库改指向新主。优点是成熟，缺点是组件老、自动化和云原生能力有限。\n\n### Orchestrator\n\nOrchestrator 更偏复制拓扑管理。它能发现主从关系、分析复制健康度、做拓扑调整和故障恢复，也提供可视化和 API。大规模主从实例管理时，它比手工脚本更可控。\n\n### MGR / InnoDB Cluster\n\nMGR 是 MySQL Group Replication，InnoDB Cluster 在其上提供一套高可用方案。它使用组复制和共识机制做成员管理，支持单主或多主模式，更接近内建高可用。\n\n### 怎么选\n\n已有传统主从架构、主要想自动切主，可以考虑 Orchestrator 或 MHA。新系统希望使用 MySQL 官方内建高可用能力，可以评估 InnoDB Cluster。无论哪种方案，都要演练网络分区、脑裂防护、延迟切主、旧主回收和应用侧连接切换。\n\n### 关键提醒\n\n高可用工具解决的是故障检测和拓扑切换，不替你解决备份、误删恢复、慢 SQL、容量和应用重试。",
+    "tags": ["MySQL", "MySQL日志与高可用"],
+    "source": "精选"
+  },
+  {
+    "id": "mysql-rel-009",
+    "module": "MySQL",
+    "difficulty": 3,
+    "question": "备份恢复中 mysqldump、xtrabackup、binlog 增量如何取舍？",
+    "answer": "### mysqldump\n\nmysqldump 是逻辑备份，导出 SQL 或表数据。优点是简单、可跨版本、可按库表恢复；缺点是大库慢、恢复慢、对实例压力较明显。适合小库、配置表、低频导出。\n\n### xtrabackup\n\nxtrabackup 是物理热备，直接备份 InnoDB 数据文件并处理 redo。优点是大库速度快、恢复快、对线上影响相对可控；缺点是依赖版本和存储格式，备份文件可读性差。适合生产大库全量备份。\n\n### binlog 增量\n\nbinlog 增量记录备份之后的变更，用来做按时间点恢复。没有 binlog，只能恢复到全量备份时刻；有 binlog，才能恢复到误操作前一秒。\n\n### 常见组合\n\n生产常用 xtrabackup 做定期全量或增量物理备份，保留 binlog 做 PITR；少量核心表可额外 mysqldump 方便单表恢复。\n\n### 真正要验证的是恢复\n\n备份成功不等于能恢复。必须定期在隔离环境恢复，校验数据量、checksum、业务抽样、恢复耗时和 binlog 可用性。没有恢复演练的备份方案是不完整的。",
+    "tags": ["MySQL", "MySQL日志与高可用"],
+    "source": "精选"
+  },
+  {
+    "id": "mysql-rel-010",
+    "module": "MySQL",
+    "difficulty": 3,
+    "question": "如何做按时间点恢复和演练验证？",
+    "answer": "### PITR 的基本思路\n\n按时间点恢复通常是先恢复最近一次全量备份，再按顺序回放 binlog 到目标时间或目标 GTID。目标通常是“误删发生前一刻”，而不是最新时间。\n\n### 操作步骤\n\n1. 找到误操作时间、库表范围和影响 SQL。\n2. 在隔离实例恢复最近的全量备份。\n3. 从备份点之后的 binlog 开始回放。\n4. 回放到误操作前，或跳过误操作 event 后继续回放。\n5. 校验数据，再决定是整库替换、单表导回，还是补偿修复。\n\n### 注意事项\n\n恢复不要直接在原库上试。先保留现场，防止覆盖证据。binlog row 格式下可以更准确定位行变更，但分析成本也更高。跨库事务、外键、触发器和下游系统都要纳入影响评估。\n\n### 演练验证\n\n演练要记录 RTO 和 RPO：多久能恢复，最多丢多少数据。还要验证备份文件可读、binlog 连续、权限可用、恢复脚本可重复执行。真正事故时，手册比临场发挥可靠。",
+    "tags": ["MySQL", "MySQL日志与高可用"],
+    "source": "精选"
+  },
+  {
+    "id": "mysql-rel-011",
+    "module": "MySQL",
+    "difficulty": 3,
+    "question": "DDL 变更为什么有风险，online DDL、gh-ost、pt-osc 如何选择？",
+    "answer": "### DDL 为什么危险\n\nDDL 会拿元数据锁。哪怕 online DDL 本身能并发读写，也可能因为前面有长事务，导致 DDL 等 MDL；DDL 等待期间，后续普通查询也可能排队，最终把业务打满。\n\n大表 DDL 还可能带来磁盘空间翻倍、redo/binlog 暴涨、复制延迟、buffer pool 抖动和回滚困难。\n\n### online DDL\n\nMySQL 原生 online DDL 适合风险较低、版本支持良好的变更。要看 ALGORITHM 和 LOCK 实际是否能做到 inplace/instant，以及是否会重建表。\n\n~~~sql\nalter table user add column ext varchar(64), algorithm=instant;\n~~~\n\n### gh-ost 和 pt-osc\n\n两者都是影子表思路：创建新表，增量同步原表变更，最后切换表名。pt-osc 使用触发器捕获变更；gh-ost 通过 binlog 追增量，对主库侵入通常更小。\n\n### 选择建议\n\n小表或 instant 支持的变更优先原生 DDL。大表加索引、改列类型、重建表，要评估 gh-ost/pt-osc。变更前检查长事务、磁盘、复制延迟、外键、触发器和回滚方案；变更中设置限速和暂停条件。",
+    "tags": ["MySQL", "MySQL日志与高可用"],
+    "source": "精选"
+  },
+  {
+    "id": "mysql-rel-012",
+    "module": "MySQL",
+    "difficulty": 3,
+    "question": "分库分表、分区表和归档策略分别适合什么规模问题？",
+    "answer": "### 分库分表\n\n分库分表解决单库单表容量、写入吞吐、索引高度和维护窗口问题。它的代价很大：跨分片查询、跨分片事务、全局唯一 ID、分页排序、扩容迁移都会变复杂。只有单表数据量、写入量或存储已经接近瓶颈时才值得做。\n\n### 分区表\n\n分区表仍在同一个 MySQL 实例里，适合按时间或范围管理大表，例如按月删除历史数据、按时间裁剪查询范围。它不能解决单实例写入瓶颈，也不能替代分库。分区键如果没有进入查询条件，效果会很差。\n\n### 归档\n\n归档解决冷热数据混在一起的问题。把低频历史数据迁到归档表、归档库或离线存储，可以缩小在线表和索引，降低备份、DDL 和查询成本。\n\n### 怎么判断\n\n先做归档和索引治理，再考虑分区，最后才是分库分表。分库分表前要明确分片键、查询模式、扩容方案、数据迁移、全局唯一约束和灰度回滚。很多系统的问题不是表不够分，而是历史数据不该继续留在在线热表。",
+    "tags": ["MySQL", "MySQL日志与高可用"],
+    "source": "精选"
+  }
+]

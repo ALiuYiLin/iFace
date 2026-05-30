@@ -155,9 +155,12 @@ export async function deleteQuestionsBySource(source: string): Promise<void> {
   await tx.done
 
   if (deletedIds.length > 0) {
+    const recordTx = db.transaction(STORES.STUDY_RECORDS, 'readwrite')
     const noteTx = db.transaction(STORES.QUESTION_NOTES, 'readwrite')
     const flagTx = db.transaction(STORES.QUESTION_FLAGS, 'readwrite')
     await Promise.all([
+      ...deletedIds.map((id) => recordTx.store.delete(id)),
+      recordTx.done,
       ...deletedIds.map((id) => noteTx.store.delete(id)),
       noteTx.done,
       ...deletedIds.map((id) => flagTx.store.delete(id)),
@@ -170,6 +173,7 @@ export async function deleteQuestionById(id: string): Promise<void> {
   const db = await getDB()
   await Promise.all([
     db.delete(STORES.QUESTIONS, id),
+    db.delete(STORES.STUDY_RECORDS, id),
     db.delete(STORES.QUESTION_NOTES, id),
     db.delete(STORES.QUESTION_FLAGS, id),
   ])
@@ -409,6 +413,7 @@ export const META_KEYS = {
   DAILY_RECS: 'daily_recommendations', // { date, ids }
   SCHEMA_VERSION: 'schema_version',
   BUILTIN_QUESTIONS_VERSION: 'builtin_questions_version',
+  BUILTIN_REPLACEMENT_MIGRATION: 'builtin_replacement_migration',
   CATEGORY_MAP: 'category_map', // CategoryMap — user-defined category → modules mapping
 } as const
 
@@ -454,31 +459,15 @@ export const DEFAULT_CATEGORY_MAP: CategoryMap = {
   },
   Java: {
     name: 'Java',
-    modules: ['Java基础', 'Java面向对象', 'Java并发', 'JVM', 'Spring框架'],
+    modules: ['Java基础', 'Java并发', 'JVM', 'Spring框架', '计算机网络', 'MySQL', 'Redis'],
     builtin: true,
     order: 3,
-  },
-  计算机网络: {
-    name: '计算机网络',
-    modules: ['网络基础', 'TCP/IP', 'HTTP', '网络安全'],
-    builtin: true,
-    order: 4,
-  },
-  Redis: {
-    name: 'Redis',
-    modules: ['Redis基础', 'Redis数据结构', 'Redis持久化', 'Redis集群'],
-    builtin: true,
-    order: 5,
-  },
-  MySQL: {
-    name: 'MySQL',
-    modules: ['MySQL基础', 'MySQL索引', 'MySQL事务', 'MySQL优化'],
-    builtin: true,
-    order: 6,
   },
 }
 
 // ─── Category map ─────────────────────────────────────────────────────────────
+
+const LEGACY_JAVA_CATEGORY_NAMES = new Set(['Java 后端', '计算机网络', 'Redis', 'MySQL'])
 
 export async function getCategoryMap(): Promise<CategoryMap> {
   const stored = await getMeta<CategoryMap>(META_KEYS.CATEGORY_MAP)
@@ -488,6 +477,10 @@ export async function getCategoryMap(): Promise<CategoryMap> {
 
   for (const [key, entry] of Object.entries(stored)) {
     const builtin = DEFAULT_CATEGORY_MAP[key]
+
+    if (entry.builtin && LEGACY_JAVA_CATEGORY_NAMES.has(key)) {
+      continue
+    }
 
     if (!builtin) {
       merged[key] = entry
