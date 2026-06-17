@@ -2850,43 +2850,22 @@ function AnswerPanelTabs({ activeView, answerLabel, onChange }: AnswerPanelTabsP
 }
 
 interface MobileQuestionNavProps {
-  answerVisible: boolean
-  answerPanelView: AnswerPanelView
-  hasLearningCheck: boolean
   prevDisabled: boolean
   nextDisabled: boolean
   onPrev: () => void
   onNext: () => void
-  onPrimary: () => void
 }
 
-function MobileQuestionNav({
-  answerVisible,
-  answerPanelView,
-  hasLearningCheck,
-  prevDisabled,
-  nextDisabled,
-  onPrev,
-  onNext,
-  onPrimary,
-}: MobileQuestionNavProps) {
-  const primaryLabel = !answerVisible
-    ? '查看答案'
-    : answerPanelView === 'check'
-      ? '参考答案'
-      : hasLearningCheck
-        ? '测试一下'
-        : '参考答案'
-
+function MobileQuestionNav({ prevDisabled, nextDisabled, onPrev, onNext }: MobileQuestionNavProps) {
   const navButtonStyle = (disabled: boolean): React.CSSProperties => ({
     display: 'inline-flex',
     alignItems: 'center',
     justifyContent: 'center',
     gap: 4,
     minWidth: 0,
-    height: 44,
+    height: 38,
     padding: '0 10px',
-    borderRadius: 12,
+    borderRadius: 10,
     border: '1px solid var(--border-subtle)',
     background: 'var(--surface)',
     color: disabled ? 'var(--text-3)' : 'var(--text-2)',
@@ -2920,28 +2899,6 @@ function MobileQuestionNav({
           <polyline points="12 19 5 12 12 5" />
         </svg>
         上一题
-      </button>
-      <button
-        type="button"
-        onClick={onPrimary}
-        style={{
-          display: 'inline-flex',
-          alignItems: 'center',
-          justifyContent: 'center',
-          minWidth: 0,
-          height: 44,
-          padding: '0 14px',
-          borderRadius: 12,
-          border: '1px solid rgba(var(--primary-rgb),0.24)',
-          background: 'var(--primary-light)',
-          color: 'var(--primary)',
-          fontSize: 13,
-          fontWeight: 700,
-          cursor: 'pointer',
-          whiteSpace: 'nowrap',
-        }}
-      >
-        {primaryLabel}
       </button>
       <button
         type="button"
@@ -4716,25 +4673,6 @@ export default function QuestionDetail() {
     [navigate, questionNavigationSearch],
   )
 
-  const handleMobilePrimaryAction = useCallback(() => {
-    blurActiveControl()
-    if (!answerVisible) {
-      handleRevealAnswer()
-      return
-    }
-
-    if (answerPanelView === 'check') {
-      setAnswerPanelView('answer')
-      return
-    }
-
-    if (hasLearningCheck) {
-      setAnswerEditMode(false)
-      setAnswerSelection(null)
-      setAnswerPanelView('check')
-    }
-  }, [answerPanelView, answerVisible, handleRevealAnswer, hasLearningCheck])
-
   const handleRetrySession = useCallback(() => {
     if (sessionStats.retryIds.length === 0) return
     for (const retryId of sessionStats.retryIds) {
@@ -6169,9 +6107,6 @@ export default function QuestionDetail() {
       )}
 
       <MobileQuestionNav
-        answerVisible={answerVisible}
-        answerPanelView={answerPanelView}
-        hasLearningCheck={hasLearningCheck}
         prevDisabled={!prevId}
         nextDisabled={!nextId}
         onPrev={() => {
@@ -6182,7 +6117,6 @@ export default function QuestionDetail() {
           blurActiveControl()
           navigateTo(nextId)
         }}
-        onPrimary={handleMobilePrimaryAction}
       />
 
       <style>{`
@@ -6250,7 +6184,7 @@ export default function QuestionDetail() {
 				}
 				@media (max-width: 640px) {
 					.page-container {
-						padding-bottom: calc(92px + env(safe-area-inset-bottom)) !important;
+						padding-bottom: calc(66px + env(safe-area-inset-bottom)) !important;
 					}
 					.mobile-question-nav {
 						position: fixed;
@@ -6259,17 +6193,17 @@ export default function QuestionDetail() {
 						bottom: 0;
 						z-index: 135;
 						display: grid;
-						grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr);
-						gap: 8px;
+						grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+						gap: 10px;
 						align-items: center;
-						padding: 8px 12px calc(8px + env(safe-area-inset-bottom));
+						padding: 6px 10px calc(6px + env(safe-area-inset-bottom));
 						background: color-mix(in srgb, var(--surface) 94%, transparent);
 						border-top: 1px solid var(--border-subtle);
-						box-shadow: 0 -8px 24px rgba(15, 23, 42, 0.08);
+						box-shadow: 0 -6px 18px rgba(15, 23, 42, 0.07);
 						backdrop-filter: blur(16px);
 					}
 					.ai-fab {
-						bottom: calc(76px + env(safe-area-inset-bottom)) !important;
+						bottom: calc(60px + env(safe-area-inset-bottom)) !important;
 						right: 16px !important;
 						width: 48px !important;
 						height: 48px !important;
