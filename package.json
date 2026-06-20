@@ -27,6 +27,7 @@
     "check:all": "bun run check && bun run check:version && bun run check:release && bun run check:quality-gate && bun run check:docs && bun run check:external-records && bun run check:backup && bun run check:questions && bun run check:sync && bun run check:ai && bun run build && bun run check:pwa"
   },
   "dependencies": {
+    "axios": "^1.18.0",
     "clsx": "^2.1.1",
     "idb": "^8.0.3",
     "mammoth": "^1.12.0",

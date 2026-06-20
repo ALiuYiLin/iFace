@@ -12,7 +12,7 @@ interface Config {
 }
 
 const config: Config = {
-  port: process.env.PORT ? parseInt(process.env.PORT, 10) : 3001,
+  port: process.env.PORT ? parseInt(process.env.PORT, 10) : 3000,
   dbPath: process.env.DB_PATH ?? path.join(root, 'data', 'iface.db'),
   uploadDir: process.env.UPLOAD_DIR ?? path.join(root, 'uploads'),
   corsOrigins: process.env.CORS_ORIGINS ?? '*',
