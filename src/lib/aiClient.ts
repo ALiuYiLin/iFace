@@ -10,6 +10,7 @@ export interface ChatCompletionConfig {
   model: string
   temperature: number
   maxTokens: number
+  provider?: string
 }
 
 export interface ChatCompletionMessage {
@@ -27,6 +28,36 @@ interface RequestChatCompletionStreamOptions {
 
 export function buildChatCompletionsUrl(baseUrl: string): string {
   return `${baseUrl.replace(/\/+$/, '')}/chat/completions`
+}
+
+export function buildChatCompletionsBody(
+  config: Pick<
+    ChatCompletionConfig,
+    'baseUrl' | 'model' | 'temperature' | 'maxTokens' | 'provider'
+  >,
+  messages: ChatCompletionMessage[],
+  stream: boolean,
+): Record<string, unknown> {
+  const tokenLimitParameter =
+    config.provider === 'openai' || isOpenAIBaseUrl(config.baseUrl)
+      ? 'max_completion_tokens'
+      : 'max_tokens'
+
+  return {
+    model: config.model,
+    messages,
+    temperature: config.temperature,
+    [tokenLimitParameter]: config.maxTokens,
+    stream,
+  }
+}
+
+function isOpenAIBaseUrl(baseUrl: string): boolean {
+  try {
+    return new URL(baseUrl).hostname === 'api.openai.com'
+  } catch {
+    return false
+  }
 }
 
 async function parseErrorMessage(response: Response): Promise<string> {
@@ -54,13 +85,7 @@ export async function requestChatCompletionStream({
       Authorization: `Bearer ${config.apiKey}`,
     },
     signal,
-    body: JSON.stringify({
-      model: config.model,
-      messages,
-      temperature: config.temperature,
-      max_tokens: config.maxTokens,
-      stream: true,
-    }),
+    body: JSON.stringify(buildChatCompletionsBody(config, messages, true)),
   })
 
   if (!response.ok) {

@@ -360,6 +360,7 @@ export default function AITool() {
           model: config.model,
           temperature: Math.min(0.75, Math.max(0.25, config.temperature)),
           maxTokens: Math.max(1800, Math.min(config.maxTokens, 3200)),
+          provider: config.provider,
         },
         messages: buildMessages(tool, values),
         signal: controller.signal,

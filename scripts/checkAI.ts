@@ -1,4 +1,4 @@
-import { requestChatCompletionStream } from '../src/lib/aiClient.ts'
+import { buildChatCompletionsBody, requestChatCompletionStream } from '../src/lib/aiClient.ts'
 import {
   createChatCompletionStreamState,
   flushChatCompletionStream,
@@ -99,6 +99,23 @@ assert(
   buildChatCompletionsUrl('https://api.deepseek.com/') ===
     'https://api.deepseek.com/chat/completions',
   'Chat Completions URL 拼接错误',
+)
+
+const openAIRequestBody = buildChatCompletionsBody(
+  {
+    baseUrl: 'https://api.openai.com/v1',
+    model: 'gpt-5.4-mini',
+    temperature: 0.3,
+    maxTokens: 10,
+    provider: 'openai',
+  },
+  [{ role: 'user', content: 'hello' }],
+  false,
+)
+assert(
+  'openai chat body uses max_completion_tokens',
+  openAIRequestBody.max_completion_tokens === 10 && !('max_tokens' in openAIRequestBody),
+  `OpenAI 请求体 token 参数错误：${JSON.stringify(openAIRequestBody)}`,
 )
 
 assert(

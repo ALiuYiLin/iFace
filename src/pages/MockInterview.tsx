@@ -308,6 +308,7 @@ export default function MockInterview() {
           model: config.model,
           temperature: Math.min(0.8, Math.max(0.3, config.temperature)),
           maxTokens,
+          provider: config.provider,
         },
         messages,
         onDelta,

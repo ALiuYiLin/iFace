@@ -729,6 +729,7 @@ export function useAIStore() {
             model: config.model,
             temperature: config.temperature,
             maxTokens: config.maxTokens,
+            provider: config.provider,
           },
           messages,
           signal: controller.signal,

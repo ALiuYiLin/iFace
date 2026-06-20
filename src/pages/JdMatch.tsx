@@ -232,6 +232,7 @@ export default function JdMatch() {
           model: config.model,
           temperature: Math.min(0.7, Math.max(0.2, config.temperature)),
           maxTokens: 2400,
+          provider: config.provider,
         },
         messages: buildJdMatchMessages({
           roleTitle: roleTitle.trim() || DEFAULT_ROLE,
