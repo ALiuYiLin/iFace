@@ -1,0 +1,37 @@
+.tablist {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  min-width: 0;
+}
+
+.tab {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 30px;
+  padding: 0 11px;
+  border-radius: 8px;
+  border: none;
+  font-size: 12px;
+  cursor: pointer;
+  transition: background 0.15s, color 0.15s;
+  white-space: nowrap;
+  background: transparent;
+}
+
+.tabActive {
+  background: var(--primary-light);
+  color: var(--primary);
+  font-weight: 600;
+}
+
+.tabIdle {
+  color: var(--text-2);
+  font-weight: 500;
+}
+
+.tabIdle:hover {
+  background: var(--surface-2);
+  color: var(--text);
+}

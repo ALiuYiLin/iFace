@@ -1,0 +1,266 @@
+/* ─── Filter Panel ──────────────────────────────────────── */
+
+.panel {
+  width: 100%;
+  flex-shrink: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+}
+
+/* Header */
+.header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.title {
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--text-3);
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+}
+
+.clearBtn {
+  font-size: 12px;
+  color: var(--primary);
+  background: none;
+  border: none;
+  cursor: pointer;
+  padding: 0;
+}
+
+/* Results count */
+.resultCount {
+  font-size: 12px;
+  color: var(--text-3);
+}
+
+.countNumber {
+  font-weight: 600;
+  color: var(--text);
+}
+
+/* Section */
+.section {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+}
+
+.sectionLabel {
+  font-size: 11px;
+  font-weight: 500;
+  color: var(--text-3);
+  margin-bottom: 6px;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+
+.sectionHeader {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 6px;
+}
+
+/* Toggle button base */
+.toggleBtn {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 5px 10px;
+  border-radius: 8px;
+  background: transparent;
+  border: none;
+  cursor: pointer;
+  transition: background 0.12s;
+  text-align: left;
+  width: 100%;
+}
+
+.toggleBtn:hover {
+  background: var(--surface-2);
+}
+
+.toggleBtnActive {
+  background: var(--surface-2);
+}
+
+/* Difficulty/Status badge inside toggle */
+.badge {
+  font-size: 11px;
+  font-weight: 500;
+  padding: 2px 8px;
+  border-radius: 6px;
+  border: 1px solid;
+}
+
+.checkIcon {
+  width: 12px;
+  height: 12px;
+  margin-left: auto;
+  flex-shrink: 0;
+}
+
+/* Module toggle with custom badge */
+.moduleBtn {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 10px;
+  border-radius: 8px;
+  font-size: 13px;
+  color: var(--text-2);
+  background: transparent;
+  border: none;
+  cursor: pointer;
+  text-align: left;
+  transition: background 0.12s, color 0.12s;
+  width: 100%;
+}
+
+.moduleBtn:hover {
+  background: var(--surface-2);
+  color: var(--text);
+}
+
+.moduleBtnActive {
+  font-weight: 500;
+  color: var(--primary);
+  background: var(--primary-light);
+}
+
+.moduleName {
+  flex: 1;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.moduleBadge {
+  font-size: 9px;
+  padding: 1px 4px;
+  border-radius: 3px;
+  flex-shrink: 0;
+}
+
+.moduleBadgeDefault {
+  background: var(--surface-3);
+  color: var(--text-3);
+}
+
+.moduleBadgeActive {
+  background: rgba(255, 255, 255, 0.2);
+  color: rgba(255, 255, 255, 0.8);
+}
+
+/* Custom module indicator */
+.customDot {
+  font-size: 10px;
+  padding: 1px 5px;
+  border-radius: 4px;
+  background: var(--primary-light);
+  color: var(--primary);
+  border: 1px solid rgba(var(--primary-rgb), 0.2);
+}
+
+/* Review buttons (starred / notes) */
+.reviewBtn {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  width: 100%;
+  min-height: 36px;
+  padding: 7px 10px;
+  border-radius: 10px;
+  border: 1px solid var(--border-subtle);
+  background: var(--surface);
+  color: var(--text-2);
+  cursor: pointer;
+  transition: background 0.12s, border-color 0.12s, color 0.12s;
+}
+
+.reviewBtn:hover {
+  /* subtle hover via border/background */
+}
+
+.reviewBtnStarredActive {
+  border-color: rgba(245, 158, 11, 0.35);
+  background: rgba(245, 158, 11, 0.1);
+  color: #b45309;
+}
+
+.reviewBtnNotesActive {
+  border-color: rgba(var(--primary-rgb), 0.28);
+  background: var(--primary-light);
+  color: var(--primary);
+}
+
+.reviewContent {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  min-width: 0;
+}
+
+.reviewIcon {
+  width: 13px;
+  height: 13px;
+  flex-shrink: 0;
+}
+
+.reviewLabel {
+  font-size: 13px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.reviewLabelInactive {
+  font-weight: 500;
+}
+
+.reviewLabelActive {
+  font-weight: 600;
+}
+
+.reviewCountWrap {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  flex-shrink: 0;
+}
+
+.reviewCount {
+  min-width: 20px;
+  padding: 1px 6px;
+  border-radius: 99px;
+  font-size: 11px;
+  font-weight: 600;
+  line-height: 1.45;
+  text-align: center;
+}
+
+.reviewCountDefault {
+  background: var(--surface-2);
+  color: var(--text-3);
+}
+
+.reviewCountStarredActive {
+  background: rgba(255, 255, 255, 0.55);
+  color: #b45309;
+}
+
+.reviewCountNotesActive {
+  background: rgba(255, 255, 255, 0.55);
+  color: var(--primary);
+}
+
+/* Section gap */
+.sectionGap {
+  margin-bottom: 6px;
+}

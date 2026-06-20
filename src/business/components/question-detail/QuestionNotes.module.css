@@ -1,0 +1,254 @@
+.container {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  min-width: 0;
+}
+
+.containerEmbedded {
+  height: 100%;
+  min-height: 100%;
+  overflow: auto;
+}
+
+.containerCard {
+  padding: 18px;
+}
+
+.header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.headerLeft {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+}
+
+.icon {
+  width: 24px;
+  height: 24px;
+  border-radius: 7px;
+  background: var(--primary-light);
+  color: var(--primary);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+
+.headerInfo {
+  min-width: 0;
+}
+
+.headerTitle {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--text);
+}
+
+.statusText {
+  font-size: 11px;
+  margin-top: 1px;
+}
+
+.statusTextDanger {
+  color: var(--danger);
+}
+
+.statusTextDefault {
+  color: var(--text-3);
+}
+
+.modeBtn {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 5px 10px;
+  border-radius: 8px;
+  border: 1px solid var(--border-subtle);
+  font-size: 12px;
+  font-weight: 500;
+  cursor: pointer;
+  flex-shrink: 0;
+}
+
+.modeBtnEdit {
+  background: var(--primary);
+  color: white;
+}
+
+.modeBtnView {
+  background: var(--surface-2);
+  color: var(--text-2);
+}
+
+.modeBtnDisabled {
+  opacity: 0.55;
+  cursor: default;
+}
+
+.editor {
+  width: 100%;
+  overflow: hidden;
+  border-radius: 10px;
+  border: 1px solid var(--border-subtle);
+  background: var(--surface-2);
+  transition: border-color 0.15s, box-shadow 0.15s;
+}
+
+.editorFocused {
+  border-color: var(--primary);
+  box-shadow: 0 0 0 3px var(--primary-light);
+}
+
+.toolbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  flex-wrap: wrap;
+  padding: 7px 8px;
+  border-bottom: 1px solid var(--border-subtle);
+}
+
+.toolbarActions {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  flex-wrap: wrap;
+}
+
+.toolbarActionsRight {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
+}
+
+.statusIndicator {
+  max-width: 180px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 11px;
+}
+
+.statusIndicatorPrimary {
+  color: var(--primary);
+}
+
+.statusIndicatorDanger {
+  color: var(--danger);
+}
+
+.toolbarBtn {
+  min-width: 28px;
+  height: 26px;
+  padding: 0 7px;
+  border-radius: 7px;
+  border: 1px solid transparent;
+  background: transparent;
+  color: var(--text-3);
+  font-size: 11px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: border-color 0.15s, color 0.15s, background 0.15s;
+}
+
+.toolbarBtn:hover:not(:disabled) {
+  border-color: rgba(var(--primary-rgb), 0.28);
+  color: var(--primary);
+  background: var(--primary-light);
+}
+
+.toolbarBtn:disabled {
+  cursor: default;
+  opacity: 0.5;
+}
+
+.toolbarBtnBold {
+  font-family: var(--font-sans);
+}
+
+.toolbarBtnMono {
+  font-family: var(--font-mono);
+}
+
+.textarea {
+  width: 100%;
+  min-height: 160px;
+  resize: vertical;
+  padding: 12px 13px;
+  border: none;
+  background: transparent;
+  color: var(--text);
+  outline: none;
+  font-size: 16px;
+  line-height: 1.65;
+  font-family: var(--font-sans);
+  display: block;
+}
+
+.textareaEmbedded {
+  min-height: min(34dvh, 340px);
+  flex: 0 0 auto;
+}
+
+.preview {
+  max-height: 220px;
+  overflow-y: auto;
+  padding: 8px 1px 2px;
+  font-size: 13px;
+  min-width: 0;
+}
+
+.previewEmbedded {
+  max-height: min(24dvh, 260px);
+}
+
+.viewContent {
+  flex: 1 1 auto;
+  min-height: 160px;
+  overflow-y: auto;
+  padding: 6px 1px 0;
+  font-size: 13px;
+  min-width: 0;
+}
+
+.viewContentEmbedded {
+  min-height: 0;
+}
+
+.emptyState {
+  flex: 1 1 auto;
+  min-height: 160px;
+  padding: 6px 1px 0;
+  border: none;
+  background: transparent;
+  color: var(--text-3);
+  font-size: 13px;
+  display: flex;
+  align-items: flex-start;
+  justify-content: flex-start;
+  line-height: 1.65;
+}
+
+.footer {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  font-size: 11px;
+  color: var(--text-3);
+  flex-shrink: 0;
+}
+
+.wordCount {
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}

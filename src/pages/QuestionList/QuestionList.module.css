@@ -1,0 +1,308 @@
+/* ─── Page Header ───────────────────────────────────────── */
+
+.pageHeader {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 20px;
+}
+
+.pageTitle {
+  font-size: 20px;
+  font-weight: 700;
+  color: var(--text);
+  letter-spacing: -0.015em;
+}
+
+.pageSubtitle {
+  font-size: 12px;
+  color: var(--text-3);
+  margin-top: 2px;
+}
+
+.headerActions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+/* ─── Mobile Filter Toggle ─────────────────────────────── */
+
+.mobileFilterBtn {
+  display: none;
+  align-items: center;
+  gap: 6px;
+  flex-shrink: 0;
+  padding: 6px 12px;
+  border-radius: 8px;
+  font-size: var(--control-font-size);
+  white-space: nowrap;
+  border: 1px solid var(--border);
+  color: var(--text-2);
+  background: var(--surface);
+  cursor: pointer;
+  transition: background 0.15s;
+}
+
+.mobileFilterBtn:hover {
+  background: var(--surface-2);
+}
+
+.mobileFilterBtnIcon {
+  width: 13px;
+  height: 13px;
+  flex-shrink: 0;
+}
+
+.mobileFilterDot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--primary);
+  display: inline-block;
+  flex-shrink: 0;
+}
+
+/* ─── Sort Select ───────────────────────────────────────── */
+
+.sortSelect {
+  font-size: var(--control-font-size);
+  padding: 6px 10px;
+  border-radius: 8px;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  color: var(--text);
+  cursor: pointer;
+  outline: none;
+}
+
+/* ─── Search Bar ────────────────────────────────────────── */
+
+.searchBar {
+  position: relative;
+  margin-bottom: 16px;
+}
+
+.searchIcon {
+  position: absolute;
+  left: 12px;
+  top: 50%;
+  transform: translateY(-50%);
+  color: var(--text-3);
+  pointer-events: none;
+}
+
+.searchInput {
+  padding-left: 36px;
+  padding-right: 60px;
+  border-radius: 10px;
+  box-shadow: var(--shadow-xs);
+}
+
+.searchRight {
+  position: absolute;
+  right: 12px;
+  top: 50%;
+  transform: translateY(-50%);
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.searchClearBtn {
+  color: var(--text-3);
+  background: none;
+  border: none;
+  cursor: pointer;
+  display: flex;
+  padding: 2px;
+}
+
+/* ─── Filter Chips ──────────────────────────────────────── */
+
+.filterChips {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-wrap: wrap;
+  margin-bottom: 14px;
+}
+
+.chip {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  padding: 3px 10px;
+  border-radius: 99px;
+  font-size: 12px;
+  font-weight: 500;
+  border: 1px solid;
+  cursor: pointer;
+  transition: all 0.12s;
+}
+
+.chipClearIcon {
+  width: 9px;
+  height: 9px;
+}
+
+.chipStarred {
+  background: rgba(245, 158, 11, 0.1);
+  color: #b45309;
+  border-color: rgba(245, 158, 11, 0.22);
+}
+
+.chipNotes {
+  background: rgba(99, 102, 241, 0.08);
+  color: var(--primary);
+  border-color: rgba(var(--primary-rgb), 0.18);
+}
+
+.chipModule {
+  background: var(--primary-light);
+  color: var(--primary);
+  border-color: rgba(var(--primary-rgb), 0.2);
+}
+
+.chipDifficulty {
+  font-weight: 500;
+  transition: all 0.15s;
+}
+
+.chipStatus {
+  font-weight: 500;
+  transition: all 0.15s;
+}
+
+.chipSearch {
+  background: var(--surface-3);
+  color: var(--text-2);
+  border-color: var(--border);
+}
+
+/* ─── Main Layout ───────────────────────────────────────── */
+
+.mainLayout {
+  display: flex;
+  gap: 20px;
+  align-items: flex-start;
+}
+
+.sidebar {
+  position: sticky;
+  top: calc(var(--navbar-h) + 20px);
+  width: 200px;
+  flex-shrink: 0;
+}
+
+/* ─── Mobile Overlay ────────────────────────────────────── */
+
+.mobileOverlay {
+  position: fixed;
+  inset: 0;
+  z-index: 40;
+  background: rgba(0, 0, 0, 0.2);
+  backdrop-filter: blur(2px);
+  border: none;
+  padding: 0;
+  margin: 0;
+  cursor: pointer;
+}
+
+.mobilePanel {
+  position: fixed;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  z-index: 50;
+  outline: none;
+}
+
+.mobilePanelContent {
+  border-radius: 18px 18px 0 0;
+  padding: 20px;
+  box-shadow: var(--shadow-xl);
+  max-height: 80dvh;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  -webkit-overflow-scrolling: touch;
+}
+
+.mobilePanelHeader {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 16px;
+}
+
+.mobilePanelTitle {
+  font-weight: 600;
+  font-size: 15px;
+  color: var(--text);
+}
+
+/* ─── Question List ─────────────────────────────────────── */
+
+.questionListContainer {
+  flex: 1;
+  min-width: 0;
+}
+
+.questionList {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.loaderSentinel {
+  padding-top: 12px;
+}
+
+.loaderCards {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.loaderCard {
+  padding: 14px 16px;
+  display: flex;
+  align-items: flex-start;
+  gap: 14px;
+}
+
+.loaderBody {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.allShown {
+  text-align: center;
+  font-size: 12px;
+  color: var(--text-3);
+  padding-top: 16px;
+}
+
+.emptyStateCard {
+  /* Uses global .card for styling */
+}
+
+/* ─── Responsive ────────────────────────────────────────── */
+
+@media (max-width: 768px) {
+  .sidebar {
+    display: none !important;
+  }
+  .mobileFilterBtn {
+    display: flex !important;
+  }
+}
+
+@media (max-width: 480px) {
+  .startBtn {
+    padding-left: 8px !important;
+    padding-right: 8px !important;
+  }
+}

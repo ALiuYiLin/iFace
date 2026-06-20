@@ -1,0 +1,25 @@
+.container {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  flex-wrap: wrap;
+  min-width: 0;
+}
+
+.dateLabel {
+  font-size: 11px;
+  line-height: 1.35;
+  color: var(--text-3);
+  white-space: nowrap;
+}
+
+.toggleBtn {
+  font-size: 11px;
+  color: var(--text-2);
+  background: transparent;
+  border: 1px solid var(--border-subtle);
+  cursor: pointer;
+  padding: 2px 7px;
+  border-radius: 999px;
+  line-height: 1.45;
+}
