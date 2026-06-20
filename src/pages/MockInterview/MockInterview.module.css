@@ -1,0 +1,590 @@
+/* ─── Page Layout ───────────────────────────────────────── */
+
+.page {
+  max-width: 1100px;
+}
+
+.hasActiveSession {
+  /* marker class for responsive query scoping */
+}
+
+/* ─── Header ────────────────────────────────────────────── */
+
+.headerRow {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 16px;
+  margin-bottom: 28px;
+}
+
+.pageTitle {
+  font-size: 20px;
+  font-weight: 700;
+  color: var(--text);
+  letter-spacing: -0.015em;
+  margin-bottom: 4px;
+}
+
+.pageSubtitle {
+  font-size: 13px;
+  color: var(--text-3);
+}
+
+/* ─── Error Banner ───────────────────────────────────────── */
+
+.errorBanner {
+  border: 1px solid rgba(239, 68, 68, 0.22);
+  background: var(--danger-light);
+  color: var(--danger);
+  border-radius: 8px;
+  padding: 10px 12px;
+  font-size: 13px;
+  margin-bottom: 16px;
+}
+
+/* ─── Grid ──────────────────────────────────────────────── */
+
+.grid {
+  display: grid;
+  gap: 16px;
+  align-items: start;
+  grid-template-columns: 330px minmax(0, 1fr);
+}
+
+.collapsed {
+  grid-template-columns: 238px minmax(0, 1fr);
+}
+
+/* ─── Sidebar ───────────────────────────────────────────── */
+
+.sidebar {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  min-width: 0;
+}
+
+/* ─── Panel ─────────────────────────────────────────────── */
+
+.panel,
+.room {
+  border: 1px solid var(--border-subtle);
+  border-radius: 8px;
+  background: var(--surface);
+  box-shadow: var(--shadow-sm);
+}
+
+.panel {
+  padding: 14px;
+  min-width: 0;
+  overflow: hidden;
+}
+
+.contextPanel {
+  position: sticky;
+  top: calc(var(--navbar-h) + 14px);
+}
+
+.contextMeta {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  gap: 8px 10px;
+  align-items: baseline;
+  margin-bottom: 12px;
+}
+
+.contextMeta span {
+  font-size: 11px;
+  color: var(--text-3);
+}
+
+.contextMeta strong {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 12px;
+  color: var(--text);
+}
+
+.contextActions {
+  display: grid;
+  gap: 8px;
+}
+
+.panelHeader,
+.roomHeader,
+.reportHeader {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 14px;
+}
+
+.panelHeader h2,
+.roomHeader h2,
+.reportHeader h2 {
+  font-size: 15px;
+  line-height: 1.3;
+  font-weight: 700;
+  color: var(--text);
+}
+
+.roomHeader p,
+.reportHeader p {
+  margin-top: 4px;
+  font-size: 12px;
+  color: var(--text-3);
+}
+
+.panelHeaderRight {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+}
+
+/* ─── Form Controls ─────────────────────────────────────── */
+
+.formGrid {
+  display: grid;
+  gap: 12px;
+}
+
+.formRow {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 10px;
+}
+
+.nativeSelect {
+  height: 38px;
+  width: 100%;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--surface);
+  color: var(--text);
+  padding: 0 10px;
+  font-size: var(--control-font-size);
+  outline: none;
+}
+
+.hiddenInput {
+  display: none;
+}
+
+.fileRow {
+  display: flex;
+  gap: 8px;
+  margin-bottom: 8px;
+}
+
+.resumeMessage {
+  font-size: 11px;
+  color: var(--text-3);
+  margin-bottom: 8px;
+}
+
+/* ─── History List ──────────────────────────────────────── */
+
+.historyList {
+  display: grid;
+  gap: 8px;
+  min-width: 0;
+}
+
+.historyItem {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+  min-width: 0;
+  max-width: 100%;
+  border: 1px solid var(--border-subtle);
+  border-radius: 8px;
+  background: var(--surface-2);
+  color: var(--text);
+  padding: 10px;
+  text-align: left;
+  cursor: pointer;
+  overflow: hidden;
+}
+
+.historyItem[data-active='true'] {
+  border-color: rgba(var(--primary-rgb), 0.32);
+  background: var(--primary-light);
+}
+
+.historyItem strong {
+  display: block;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 12px;
+  color: var(--text);
+}
+
+.historyMain {
+  min-width: 0;
+  overflow: hidden;
+}
+
+.historyMain > span {
+  display: block;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  margin-top: 3px;
+  font-size: 11px;
+  color: var(--text-3);
+}
+
+.historyScore {
+  display: flex;
+  justify-content: flex-end;
+  min-width: 0;
+  max-width: 52px;
+  overflow: hidden;
+}
+
+.historyScore > span {
+  max-width: 100%;
+  overflow: hidden;
+}
+
+.emptyText {
+  font-size: 12px;
+  color: var(--text-3);
+}
+
+/* ─── Room ──────────────────────────────────────────────── */
+
+.room {
+  min-height: 720px;
+  min-width: 0;
+  overflow: hidden;
+  padding: 16px;
+}
+
+.roomTitleRow {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.roomActions {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+}
+
+.busyBanner {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  border: 1px solid rgba(var(--primary-rgb), 0.18);
+  border-radius: 8px;
+  background: var(--primary-light);
+  color: var(--primary);
+  padding: 9px 11px;
+  margin-bottom: 14px;
+  font-size: 12px;
+  font-weight: 600;
+}
+
+/* ─── Empty State ───────────────────────────────────────── */
+
+.empty {
+  min-height: 520px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  text-align: center;
+  gap: 8px;
+  color: var(--text-3);
+}
+
+.empty h2 {
+  font-size: 18px;
+  color: var(--text);
+}
+
+.empty p {
+  max-width: 420px;
+  font-size: 13px;
+}
+
+/* ─── Plan ──────────────────────────────────────────────── */
+
+.plan {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 12px;
+  align-items: start;
+  border: 1px solid var(--border-subtle);
+  border-radius: 8px;
+  background: var(--surface-2);
+  padding: 12px;
+  margin-bottom: 14px;
+}
+
+.plan strong {
+  display: block;
+  font-size: 12px;
+  color: var(--text);
+  margin-bottom: 4px;
+}
+
+.plan p {
+  font-size: 12px;
+  color: var(--text-2);
+}
+
+.focusList {
+  display: flex;
+  gap: 6px;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  max-width: 340px;
+}
+
+/* ─── Transcript ────────────────────────────────────────── */
+
+.transcript {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  min-width: 0;
+  max-height: 520px;
+  overflow: auto;
+  padding: 2px 2px 12px;
+}
+
+.turn {
+  min-width: 0;
+  max-width: min(760px, 92%);
+  border: 1px solid var(--border-subtle);
+  border-radius: 8px;
+  padding: 12px;
+}
+
+.turnInterviewer {
+  align-self: flex-start;
+  background: var(--surface-2);
+}
+
+.turnCandidate {
+  align-self: flex-end;
+  background: var(--primary-light);
+  border-color: rgba(var(--primary-rgb), 0.16);
+}
+
+.turnPending {
+  opacity: 0.82;
+}
+
+.turnLabel {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 6px;
+  font-size: 11px;
+  font-weight: 700;
+  color: var(--text-2);
+}
+
+.turnLabel span {
+  font-weight: 400;
+  color: var(--text-3);
+}
+
+.turn p {
+  white-space: pre-wrap;
+  word-break: break-word;
+  overflow-wrap: anywhere;
+  font-size: 14px;
+  line-height: 1.7;
+  color: var(--text);
+}
+
+/* ─── Answer Box ────────────────────────────────────────── */
+
+.answerBox {
+  border-top: 1px solid var(--border-subtle);
+  margin-top: 14px;
+  padding-top: 14px;
+}
+
+.answerBox textarea {
+  width: 100%;
+  min-height: 110px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--surface);
+  color: var(--text);
+  padding: 12px;
+  font-size: var(--control-font-size);
+  line-height: 1.7;
+  resize: vertical;
+  outline: none;
+  font-family: var(--font-sans);
+}
+
+.answerActions {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin-top: 10px;
+  flex-wrap: wrap;
+}
+
+.answerActionsLeft {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+}
+
+.answerActionsRight {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+}
+
+.interim {
+  max-width: 260px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 11px;
+  color: var(--primary);
+}
+
+/* ─── Report ────────────────────────────────────────────── */
+
+.report {
+  border-top: 1px solid var(--border-subtle);
+  margin-top: 18px;
+  padding-top: 18px;
+}
+
+.dimensions {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+  gap: 10px;
+  margin-bottom: 16px;
+}
+
+.dimensions div {
+  border: 1px solid var(--border-subtle);
+  border-radius: 8px;
+  background: var(--surface-2);
+  padding: 10px;
+}
+
+.dimensions strong,
+.dimensions span {
+  display: block;
+  font-size: 12px;
+  color: var(--text);
+}
+
+.dimensions span {
+  margin-top: 4px;
+  font-weight: 700;
+  color: var(--primary);
+}
+
+.dimensions p {
+  margin-top: 6px;
+  font-size: 11px;
+  color: var(--text-3);
+  line-height: 1.5;
+}
+
+.markdown {
+  font-size: 14px;
+  color: var(--text);
+  overflow-wrap: anywhere;
+}
+
+/* ─── Recommendations ───────────────────────────────────── */
+
+.recommendations {
+  margin-top: 18px;
+  border: 1px solid var(--border-subtle);
+  border-radius: 8px;
+  background: var(--surface-2);
+  padding: 12px;
+}
+
+.recommendationsGrid {
+  display: grid;
+  gap: 8px;
+}
+
+.questionLink {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  border: 1px solid var(--border-subtle);
+  border-radius: 8px;
+  background: var(--surface);
+  padding: 10px 12px;
+  color: var(--text);
+  text-decoration: none;
+}
+
+.questionLink span:first-child {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 13px;
+}
+
+/* ─── Media Queries ─────────────────────────────────────── */
+
+@media (max-width: 920px) {
+  .grid {
+    grid-template-columns: 1fr !important;
+  }
+
+  .hasActiveSession .sidebar {
+    order: 2;
+  }
+
+  .hasActiveSession .room {
+    order: 1;
+  }
+
+  .contextPanel {
+    position: static;
+  }
+
+  .room {
+    min-height: 560px;
+  }
+
+  .turn {
+    width: 100%;
+    max-width: 100%;
+  }
+
+  .plan {
+    grid-template-columns: 1fr;
+  }
+
+  .focusList {
+    justify-content: flex-start;
+    max-width: none;
+  }
+}

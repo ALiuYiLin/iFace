@@ -1,0 +1,387 @@
+/* ─── Header ─────────────────────────────────────────── */
+.headerSection {
+  margin-bottom: 24px;
+}
+
+.headerInner {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 16px;
+}
+
+.title {
+  font-size: 20px;
+  font-weight: 700;
+  color: var(--text);
+  letter-spacing: -0.02em;
+  margin-bottom: 6px;
+}
+
+.subtitle {
+  font-size: 13px;
+  color: var(--text-2);
+}
+
+.badge {
+  flex-shrink: 0;
+  margin-top: 4px;
+}
+
+/* ─── Two-column layout ─────────────────────────────── */
+.promptLayout {
+  display: grid;
+  grid-template-columns: minmax(0, 2fr) minmax(0, 3fr);
+  gap: 20px;
+  align-items: start;
+}
+
+.leftColumn {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.rightPanel {
+  position: sticky;
+  top: calc(var(--navbar-h) + 20px);
+}
+
+/* ─── Tab Switcher ──────────────────────────────────── */
+.tabSwitcher {
+  display: flex;
+  gap: 4px;
+  padding: 4px;
+  background: var(--surface-2);
+  border-radius: 12px;
+}
+
+.tabSwitcherMargin {
+  margin-bottom: 12px;
+}
+
+.tabButton {
+  flex: 1;
+  padding: 6px 12px;
+  border-radius: 9px;
+  font-size: 12px;
+  border: none;
+  cursor: pointer;
+  transition: all 0.15s;
+}
+
+.leftTabActive {
+  font-weight: 500;
+  color: var(--text);
+  background: var(--surface);
+  box-shadow: var(--shadow-sm);
+}
+
+.leftTabInactive {
+  font-weight: 400;
+  color: var(--text-2);
+  background: transparent;
+  box-shadow: none;
+}
+
+.rightTabActive {
+  font-weight: 600;
+  color: var(--text);
+  background: var(--surface);
+  box-shadow: var(--shadow-sm);
+}
+
+.rightTabInactive {
+  font-weight: 400;
+  color: var(--text-3);
+  background: transparent;
+  box-shadow: none;
+}
+
+/* ─── Preset list ───────────────────────────────────── */
+.presetList {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+/* ─── Custom card ───────────────────────────────────── */
+.customCard {
+  padding: 16px;
+}
+
+/* ─── Preview ───────────────────────────────────────── */
+.previewHeader {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.previewTitle {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.previewName {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--text);
+}
+
+.previewLength {
+  font-size: 11px;
+  padding: 2px 7px;
+  border-radius: 5px;
+  background: var(--surface-3);
+  color: var(--text-3);
+  border: 1px solid var(--border-subtle);
+}
+
+.promptContent {
+  position: relative;
+}
+
+.preBlock {
+  font-size: 12px;
+  font-family: var(--font-mono);
+  background: var(--surface-2);
+  border: 1px solid var(--border-subtle);
+  border-radius: 14px;
+  padding: 16px;
+  overflow: auto;
+  max-height: 60dvh;
+  color: var(--text);
+  line-height: 1.7;
+  white-space: pre-wrap;
+  word-break: break-word;
+  margin: 0;
+}
+
+.copyFloat {
+  position: absolute;
+  top: 10px;
+  right: 10px;
+}
+
+/* ─── Empty State ───────────────────────────────────── */
+.emptyState {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 64px 24px;
+  text-align: center;
+}
+
+.emptyIcon {
+  color: var(--text-3);
+  margin: 0 auto 12px;
+  opacity: 0.5;
+}
+
+.emptyText {
+  font-size: 13px;
+  color: var(--text-3);
+}
+
+/* ─── Usage Guide ───────────────────────────────────── */
+.usageCard {
+  padding: 14px 16px;
+  border-color: rgba(var(--primary-rgb), 0.2);
+  background: var(--primary-light);
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.usageTitle {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--text);
+}
+
+.stepList {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.stepItem {
+  display: flex;
+  gap: 8px;
+  font-size: 12px;
+  color: var(--text-2);
+  list-style: none;
+}
+
+.stepNumber {
+  flex-shrink: 0;
+  width: 16px;
+  height: 16px;
+  border-radius: 50%;
+  background: var(--primary);
+  color: white;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 9px;
+  font-weight: 700;
+  margin-top: 1px;
+}
+
+.stepText {
+  line-height: 1.6;
+}
+
+/* ─── Tips Section ──────────────────────────────────── */
+.tipsSection {
+  margin-top: 32px;
+}
+
+.sectionLabel {
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--text-3);
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  margin-bottom: 12px;
+}
+
+.tipsGrid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 10px;
+}
+
+.tipCard {
+  padding: 14px 16px;
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+}
+
+.tipIconBox {
+  width: 30px;
+  height: 30px;
+  border-radius: 8px;
+  background: var(--surface-3);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  color: var(--text-2);
+}
+
+.tipTitle {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--text);
+  margin-bottom: 4px;
+}
+
+.tipDesc {
+  font-size: 12px;
+  color: var(--text-3);
+  line-height: 1.6;
+}
+
+/* ─── Scale Section ─────────────────────────────────── */
+.scaleSection {
+  margin-top: 20px;
+}
+
+.scaleCard {
+  padding: 20px;
+}
+
+.scaleTitle {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--text);
+  margin-bottom: 16px;
+}
+
+.scaleTable {
+  width: 100%;
+  border-collapse: collapse;
+}
+
+.tableHeader th {
+  text-align: left;
+  padding-bottom: 10px;
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--text-3);
+  padding-right: 16px;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+
+.tableRow {
+  border-bottom: 1px solid var(--border-subtle);
+}
+
+.tableTarget {
+  padding: 10px 16px 10px 0;
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--text);
+}
+
+.tableCount {
+  padding: 10px 16px 10px 0;
+}
+
+.tableBadge {
+  font-size: 11px;
+  font-weight: 500;
+  padding: 2px 8px;
+  border-radius: 5px;
+  background: var(--primary-light);
+  color: var(--primary);
+  border: 1px solid rgba(var(--primary-rgb), 0.2);
+  white-space: nowrap;
+}
+
+.tableStrategy {
+  padding: 10px 16px 10px 0;
+  font-size: 12px;
+  color: var(--text-2);
+}
+
+.tableTime {
+  padding: 10px 0;
+  font-size: 12px;
+  color: var(--text-3);
+  white-space: nowrap;
+}
+
+.scaleNote {
+  font-size: 12px;
+  color: var(--text-3);
+  margin-top: 12px;
+  line-height: 1.6;
+}
+
+/* ─── Media Queries ─────────────────────────────────── */
+@media (max-width: 768px) {
+  .promptLayout {
+    grid-template-columns: 1fr !important;
+  }
+  .tipsGrid {
+    grid-template-columns: 1fr 1fr !important;
+  }
+  :global(.converter-cols) {
+    grid-template-columns: 1fr !important;
+  }
+  :global(.format-guide-grid) {
+    grid-template-columns: 1fr !important;
+  }
+}
+
+@media (max-width: 480px) {
+  .tipsGrid {
+    grid-template-columns: 1fr !important;
+  }
+}

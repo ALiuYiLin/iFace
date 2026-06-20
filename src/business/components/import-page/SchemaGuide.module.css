@@ -1,0 +1,143 @@
+.container {
+  border-radius: 12px;
+  border: 1px solid var(--border-subtle);
+  overflow: hidden;
+}
+
+.toggleBtn {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 12px 16px;
+  background: var(--surface-2);
+  border: none;
+  cursor: pointer;
+  text-align: left;
+  transition: background 0.15s;
+}
+
+.toggleBtn:hover {
+  background: var(--surface-3);
+}
+
+.toggleLabel {
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--text);
+}
+
+.chevron {
+  color: var(--text-3);
+  transition: transform 0.2s;
+}
+
+.chevron[data-expanded='true'] {
+  transform: rotate(180deg);
+}
+
+.content {
+  padding: 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  border-top: 1px solid var(--border-subtle);
+}
+
+.fieldTable {
+  overflow-x: auto;
+  border-radius: 8px;
+  border: 1px solid var(--border);
+}
+
+.table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 12px;
+}
+
+.tableHeader {
+  background: var(--surface-2);
+}
+
+.headerCell {
+  padding: 8px 12px;
+  text-align: left;
+  font-weight: 600;
+  color: var(--text-2);
+  white-space: nowrap;
+}
+
+.tableRow {
+  border-top: 1px solid var(--border-subtle);
+}
+
+.tableRow:first-child {
+  border-top: none;
+}
+
+.cell {
+  padding: 7px 12px;
+}
+
+.cellCode {
+  padding: 7px 12px;
+  font-family: var(--font-mono);
+  color: var(--primary);
+  white-space: nowrap;
+}
+
+.cellType {
+  padding: 7px 12px;
+  font-family: var(--font-mono);
+  color: var(--text-2);
+  white-space: nowrap;
+}
+
+.cellRequired {
+  padding: 7px 12px;
+  white-space: nowrap;
+  font-size: 11px;
+  font-weight: 500;
+}
+
+.cellRequired[data-required='true'] {
+  color: var(--success);
+}
+
+.cellRequired[data-required='false'] {
+  color: var(--text-3);
+}
+
+.cellDesc {
+  padding: 7px 12px;
+  color: var(--text-2);
+  font-size: 11px;
+}
+
+.exampleSection {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.exampleLabel {
+  font-size: 11px;
+  font-weight: 500;
+  color: var(--text-2);
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+
+.examplePre {
+  font-size: 11px;
+  font-family: var(--font-mono);
+  background: var(--surface-2);
+  border: 1px solid var(--border-subtle);
+  border-radius: 10px;
+  padding: 12px 14px;
+  overflow-x: auto;
+  color: var(--text);
+  line-height: 1.6;
+  margin: 0;
+}

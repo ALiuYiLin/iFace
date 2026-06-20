@@ -1,0 +1,119 @@
+.card {
+  padding: 20px;
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.titleRow {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.title {
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--text);
+}
+
+.countBadge {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--text-3);
+  font-variant-numeric: tabular-nums;
+}
+
+.countBadge[data-can-start='true'] {
+  color: var(--primary);
+}
+
+.config {
+  display: flex;
+  flex-direction: column;
+}
+
+.row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 8px 0;
+}
+
+.rowLabel {
+  font-size: 13px;
+  color: var(--text-3);
+}
+
+.rowValue {
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--text);
+  max-width: 180px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.shuffleBtn {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 10px 12px;
+  border-radius: 10px;
+  border: 1px solid var(--border-subtle);
+  background: transparent;
+  color: var(--text-2);
+  cursor: pointer;
+  font-size: 13px;
+  transition: all 0.15s;
+}
+
+.shuffleBtn[data-active='true'] {
+  border-color: rgba(var(--primary-rgb), 0.3);
+  background: var(--primary-light);
+  color: var(--primary);
+}
+
+.shuffleLeft {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.toggle {
+  width: 30px;
+  height: 18px;
+  border-radius: 99px;
+  background: var(--border);
+  position: relative;
+  transition: background 0.2s;
+  flex-shrink: 0;
+}
+
+.toggle[data-active='true'] {
+  background: var(--primary);
+}
+
+.toggleKnob {
+  position: absolute;
+  top: 2px;
+  left: 2px;
+  width: 14px;
+  height: 14px;
+  border-radius: 50%;
+  background: white;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.2);
+  transition: left 0.2s var(--ease-out);
+}
+
+.toggleKnob[data-active='true'] {
+  left: calc(100% - 16px);
+}
+
+.empty {
+  text-align: center;
+  font-size: 13px;
+  color: var(--text-3);
+  padding: 6px 0;
+}

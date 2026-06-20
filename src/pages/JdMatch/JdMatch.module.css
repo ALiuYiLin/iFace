@@ -1,0 +1,267 @@
+.page {
+  max-width: 1100px;
+}
+
+.header {
+  margin-bottom: 28px;
+}
+
+.title {
+  font-size: 20px;
+  font-weight: 700;
+  color: var(--text);
+  letter-spacing: -0.015em;
+  margin-bottom: 4px;
+}
+
+.subtitle {
+  font-size: 13px;
+  color: var(--text-3);
+}
+
+.layout {
+  display: grid;
+  grid-template-columns: 360px minmax(0, 1fr);
+  gap: 16px;
+  align-items: start;
+}
+
+.sidebar {
+  display: grid;
+  gap: 14px;
+  min-width: 0;
+}
+
+.panel {
+  min-width: 0;
+  border: 1px solid var(--border-subtle);
+  border-radius: 8px;
+  background: var(--surface);
+  box-shadow: var(--shadow-sm);
+  padding: 16px;
+}
+
+.reportPanel {
+  min-height: 620px;
+}
+
+.panelHeader {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 14px;
+}
+
+.panelHeader h2 {
+  font-size: 15px;
+  line-height: 1.3;
+  font-weight: 700;
+  color: var(--text);
+}
+
+.panelHeader span {
+  max-width: 180px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 12px;
+  color: var(--text-3);
+}
+
+.form {
+  display: grid;
+  gap: 14px;
+}
+
+.form label,
+.field {
+  display: grid;
+  gap: 7px;
+}
+
+.form label > span,
+.field > span,
+.fileRow > span {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--text);
+}
+
+.form input {
+  height: 38px;
+  width: 100%;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--surface);
+  color: var(--text);
+  padding: 0 12px;
+  font-size: var(--control-font-size);
+  outline: none;
+}
+
+.fileRow {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 10px;
+  margin-bottom: 8px;
+}
+
+.fileRow small {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 11px;
+  color: var(--text-3);
+}
+
+.actionsRow,
+.submitRow {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.actionsRow {
+  margin-bottom: 8px;
+}
+
+.submitRow {
+  justify-content: flex-end;
+  border-top: 1px solid var(--border-subtle);
+  padding-top: 14px;
+}
+
+.resumeMessage {
+  margin-bottom: 8px;
+  font-size: 11px;
+  color: var(--text-3);
+}
+
+.alert {
+  border: 1px solid rgba(239, 68, 68, 0.22);
+  background: var(--danger-light);
+  color: var(--danger);
+  border-radius: 8px;
+  padding: 10px 12px;
+  font-size: 13px;
+  margin-bottom: 16px;
+}
+
+.busy {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  border: 1px solid rgba(var(--primary-rgb), 0.18);
+  border-radius: 8px;
+  background: var(--primary-light);
+  color: var(--primary);
+  padding: 9px 11px;
+  margin-bottom: 14px;
+  font-size: 12px;
+  font-weight: 600;
+}
+
+.empty {
+  min-height: 420px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  text-align: center;
+  color: var(--text-3);
+}
+
+.empty h2 {
+  font-size: 18px;
+  color: var(--text);
+}
+
+.empty p {
+  font-size: 13px;
+}
+
+.markdown {
+  font-size: 14px;
+  color: var(--text);
+  overflow-wrap: anywhere;
+}
+
+.historyList {
+  display: grid;
+  gap: 8px;
+  min-width: 0;
+}
+
+.historyEmpty {
+  font-size: 12px;
+  color: var(--text-3);
+}
+
+.historyItem {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+  border: 1px solid var(--border-subtle);
+  border-radius: 8px;
+  background: var(--surface-2);
+  padding: 9px;
+}
+
+.historyItem[data-active='true'] {
+  border-color: rgba(var(--primary-rgb), 0.32);
+  background: var(--primary-light);
+}
+
+.historyItem button {
+  border: none;
+  background: transparent;
+  cursor: pointer;
+}
+
+.historyItem button:first-child {
+  min-width: 0;
+  text-align: left;
+  color: var(--text);
+}
+
+.historyItem button:last-child {
+  color: var(--text-3);
+  font-size: 11px;
+  padding: 4px;
+}
+
+.historyItem strong,
+.historyItem span {
+  display: block;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.historyItem strong {
+  font-size: 12px;
+  color: var(--text);
+}
+
+.historyItem span {
+  margin-top: 3px;
+  font-size: 11px;
+  color: var(--text-3);
+}
+
+@media (max-width: 920px) {
+  .layout {
+    grid-template-columns: 1fr;
+  }
+
+  .reportPanel {
+    min-height: 420px;
+  }
+}

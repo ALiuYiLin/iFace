@@ -1,0 +1,33 @@
+.chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 14px;
+  border-radius: 10px;
+  font-size: 13px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.15s;
+  border: 1px solid var(--border);
+  background: var(--surface);
+  color: var(--text-2);
+}
+
+.chip[data-selected='true']:not([style*="background"]) {
+  border-color: var(--primary);
+  background: var(--primary);
+  color: white;
+}
+
+.count {
+  font-size: 11px;
+  padding: 1px 6px;
+  border-radius: 6px;
+  background: var(--surface-2);
+  color: var(--text-3);
+}
+
+.count[data-selected='true'] {
+  background: rgba(255, 255, 255, 0.2);
+  color: currentColor;
+}
