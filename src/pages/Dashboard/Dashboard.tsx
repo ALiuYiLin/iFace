@@ -1,17 +1,9 @@
-import { useEffect, useMemo, useState } from 'react'
-
 import { Link } from 'react-router-dom'
 import { Button, EmptyState, SegmentedRing, Skeleton } from '@/components/ui'
 import { StatCard } from '@/components/StatCard'
-import { useQuestions } from '@/hooks/useQuestions'
-import { getAllQuestionNotes, getCategoryMap } from '@/lib/db'
-import type { CategoryMap } from '@/lib/db'
-import { DEFAULT_CATEGORY_MAP } from '@/lib/db'
-import { filterVisibleQuestions, getHiddenModules } from '@/lib/questionVisibility'
-import { useStudyStore } from '@/store/useStudyStore'
-import type { QuestionNote } from '@/types'
 import { STATUS_LABELS } from '@/types'
 import { useNameSpace } from '@/utils'
+import { useDashBoardBase, useDashBoardDerived } from '@/business/hooks/dashboard'
 
 import {
   DashboardSkeleton,
@@ -31,156 +23,23 @@ import styles from './Dashboard.module.css'
 const ns = useNameSpace(styles)
 
 export default function Dashboard() {
-  const { allQuestions, loading, initializing, getDailyIds } = useQuestions()
-  const { records, streak, dailyGoal, hiddenCategories } = useStudyStore()
+  const base = useDashBoardBase()
+  const derived = useDashBoardDerived(base)
 
-  const [categoryMap, setCategoryMap] = useState<CategoryMap>({ ...DEFAULT_CATEGORY_MAP })
+  const { greeting, records, streak, dailyGoal, allQuestions, loading } = base
+  const {
+    dailyIds,
+    dailyLoading,
+    counts,
+    totalQuestions,
+    masteredPercent,
+    estimatedDays,
+    visibleQuestions,
+    moduleStats,
+    recentNoteItems,
+  } = derived
 
-  useEffect(() => {
-    getCategoryMap().then(setCategoryMap)
-  }, [])
-
-  const hiddenModules = useMemo(
-    () => getHiddenModules(categoryMap, hiddenCategories),
-    [categoryMap, hiddenCategories],
-  )
-  const visibleQuestions = useMemo(
-    () => filterVisibleQuestions(allQuestions, hiddenModules),
-    [allQuestions, hiddenModules],
-  )
-  const visibleQuestionIds = useMemo(
-    () => visibleQuestions.map((question) => question.id),
-    [visibleQuestions],
-  )
-
-  const [questionNotes, setQuestionNotes] = useState<QuestionNote[]>([])
-  const [dailyIds, setDailyIds] = useState<string[]>([])
-  const [dailyLoading, setDailyLoading] = useState(true)
-  const [greeting, setGreeting] = useState('')
-
-  useEffect(() => {
-    let cancelled = false
-
-    const loadQuestionNotes = async () => {
-      try {
-        const notes = await getAllQuestionNotes()
-        if (!cancelled) setQuestionNotes(notes)
-      } catch {
-        if (!cancelled) setQuestionNotes([])
-      }
-    }
-
-    loadQuestionNotes()
-    window.addEventListener('focus', loadQuestionNotes)
-    return () => {
-      cancelled = true
-      window.removeEventListener('focus', loadQuestionNotes)
-    }
-  }, [])
-
-  useEffect(() => {
-    const h = new Date().getHours()
-    if (h < 6) setGreeting('夜深了，注意休息')
-    else if (h < 10) setGreeting('早上好，开始今天的备战')
-    else if (h < 13) setGreeting('上午好，专注备战')
-    else if (h < 17) setGreeting('下午好，继续加油')
-    else if (h < 20) setGreeting('晚上好，刷题时间到')
-    else setGreeting('晚上好，坚持就是胜利')
-  }, [])
-
-  useEffect(() => {
-    if (visibleQuestionIds.length === 0) {
-      setDailyIds([])
-      setDailyLoading(false)
-      return
-    }
-    setDailyLoading(true)
-    getDailyIds(
-      Object.fromEntries(
-        Object.entries(records).map(([k, v]) => [
-          k,
-          { status: v.status, lastUpdated: v.lastUpdated },
-        ]),
-      ),
-      dailyGoal,
-      visibleQuestionIds,
-    )
-      .then(setDailyIds)
-      .finally(() => setDailyLoading(false))
-  }, [visibleQuestionIds, records, getDailyIds, dailyGoal])
-
-  // Counts based on visible questions only
-  const counts = useMemo(() => {
-    const visibleIds = new Set(visibleQuestions.map((q) => q.id))
-    let mastered = 0
-    let review = 0
-    for (const [id, r] of Object.entries(records)) {
-      if (!visibleIds.has(id)) continue
-      if (r.status === 'mastered') mastered++
-      else if (r.status === 'review') review++
-    }
-    const tracked = mastered + review
-    const unlearned = Math.max(0, visibleQuestions.length - tracked)
-    return { mastered, review, unlearned }
-  }, [records, visibleQuestions])
-
-  const totalQuestions = visibleQuestions.length
-  const masteredPercent =
-    totalQuestions > 0 ? Math.round((counts.mastered / totalQuestions) * 100) : 0
-  const remainingQuestions = Math.max(0, totalQuestions - counts.mastered)
-  const estimatedDays =
-    remainingQuestions === 0 ? 0 : Math.ceil(remainingQuestions / Math.max(1, dailyGoal))
-
-  const recentNoteItems = useMemo(() => {
-    const questionMap = new Map(visibleQuestions.map((q) => [q.id, q]))
-    return questionNotes
-      .filter((note) => note.content.trim().length > 0 && questionMap.has(note.questionId))
-      .sort((a, b) => b.updatedAt - a.updatedAt)
-      .map((note) => ({
-        note,
-        question: questionMap.get(note.questionId)!,
-      }))
-  }, [questionNotes, visibleQuestions])
-
-  // Module progress: derive from visible questions grouped by module,
-  // preserving the order defined in the category map, then appending any
-  // modules not covered by any category.
-  const moduleStats = useMemo(() => {
-    // Ordered module names from visible categories
-    const orderedModules: string[] = []
-    const seen = new Set<string>()
-    // Sort categories by their order field
-    const sortedCategories = Object.entries(categoryMap).sort(([, a], [, b]) => {
-      const aOrder = a.order ?? 99
-      const bOrder = b.order ?? 99
-      return aOrder - bOrder
-    })
-    for (const [catName, category] of sortedCategories) {
-      if (hiddenCategories.has(catName)) continue
-      for (const m of category.modules) {
-        if (!seen.has(m)) {
-          orderedModules.push(m)
-          seen.add(m)
-        }
-      }
-    }
-    // Append any module present in visibleQuestions but not in any category
-    for (const q of visibleQuestions) {
-      if (!seen.has(q.module)) {
-        orderedModules.push(q.module)
-        seen.add(q.module)
-      }
-    }
-
-    return orderedModules
-      .map((mod) => ({
-        module: mod,
-        questions: visibleQuestions.filter((q) => q.module === mod),
-      }))
-      .filter((s) => s.questions.length > 0)
-  }, [visibleQuestions, categoryMap, hiddenCategories])
-
-  if (initializing) {
+  if (base.initializing) {
     return (
       <div className="page-container">
         <DashboardSkeleton />
