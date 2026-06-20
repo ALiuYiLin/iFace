@@ -286,6 +286,14 @@ export function useQuestionListUI(base: QuestionListBaseData): QuestionListUISta
     }
   }, [mobileFilterOpen])
 
+  const toggleStarredOnly = useCallback(() => {
+    setStarredOnly((prev) => !prev)
+  }, [])
+
+  const toggleNotesOnly = useCallback(() => {
+    setNotesOnly((prev) => !prev)
+  }, [])
+
   // ── Keyboard shortcut: N for notes only toggle ──
   useEffect(() => {
     const handler = (e: KeyboardEvent) => {
@@ -316,14 +324,6 @@ export function useQuestionListUI(base: QuestionListBaseData): QuestionListUISta
 
   const toggleStatus = useCallback((s: StudyStatus) => {
     setSelectedStatuses((prev) => (prev.includes(s) ? prev.filter((x) => x !== s) : [...prev, s]))
-  }, [])
-
-  const toggleStarredOnly = useCallback(() => {
-    setStarredOnly((prev) => !prev)
-  }, [])
-
-  const toggleNotesOnly = useCallback(() => {
-    setNotesOnly((prev) => !prev)
   }, [])
 
   const clearFilters = useCallback(() => {
