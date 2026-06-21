@@ -22,6 +22,7 @@ export default function ImportPage() {
     setTab,
     loading,
     results,
+    setResults,
     customSources,
     fileCategory,
     setFileCategory,
