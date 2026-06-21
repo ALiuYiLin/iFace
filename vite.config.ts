@@ -65,12 +65,9 @@ export default defineConfig({
           '**/assets/pdf-*.js',
           '**/assets/mammoth.browser-*.js',
         ],
-        // Never let the Service Worker intercept /api/* requests —
-        // those must always reach the Vercel serverless functions via the network.
         navigateFallbackDenylist: [/^\/api\//],
         runtimeCaching: [
           {
-            // Force all /api/* fetches through the network — no caching ever.
             urlPattern: /^\/api\/.*/i,
             handler: 'NetworkOnly',
           },
@@ -100,6 +97,14 @@ export default defineConfig({
       },
     }),
   ],
+  server: {
+    proxy: {
+      '/api': {
+        target: 'http://localhost:3000',
+        changeOrigin: true,
+      },
+    },
+  },
   define: {
     __APP_VERSION__: JSON.stringify(pkg.version),
   },

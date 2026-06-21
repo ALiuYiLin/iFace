@@ -1,17 +1,42 @@
-import { useMemo, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { useParams, useSearchParams } from 'react-router-dom'
-import { useQuestion, useQuestions } from '@/hooks/useQuestions'
+import { usePromise } from '@/hooks/usePromise'
+import { getQuestion, getQuestions } from '@/api'
 import { readPracticeSession } from '@/lib/practiceSession'
 import { useAIStore } from '@/store/useAIStore'
 import { useStudyStore } from '@/store/useStudyStore'
+import type { Question } from '@/api'
 
 export function useQuestionDetailBase() {
   const { id } = useParams<{ id: string }>()
   const questionId = id ?? ''
   const [searchParams] = useSearchParams()
 
-  const { question, loading } = useQuestion(id)
-  const { allQuestions } = useQuestions()
+  const [question, setQuestion] = useState<Question | undefined>(undefined)
+  const [allQuestions, setAllQuestions] = useState<Question[]>([])
+
+  const [loading, loadQuestion] = usePromise(async (qId: string) => {
+    const data = await getQuestion(qId)
+    setQuestion(data)
+  })
+
+  const [allLoading, loadAllQuestions] = usePromise(async () => {
+    const res = await getQuestions({ pageSize: 1000 })
+    setAllQuestions(res.data)
+  })
+
+  useEffect(() => {
+    if (id) {
+      loadQuestion(id)
+    } else {
+      setQuestion(undefined)
+    }
+  }, [id, loadQuestion])
+
+  useEffect(() => {
+    loadAllQuestions()
+  }, [loadAllQuestions])
+
   const {
     records,
     getStatus,
@@ -60,7 +85,7 @@ export function useQuestionDetailBase() {
     id,
     questionId,
     question,
-    loading,
+    loading: loading || allLoading,
     allQuestions,
     records,
     getStatus,

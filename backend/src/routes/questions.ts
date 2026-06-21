@@ -30,9 +30,20 @@ const BUILTIN_CATEGORIES: BuiltinCategory[] = [
   ] },
 ]
 
+// ─── Helpers ─────────────────────────────────────────
+
+function parseTags(raw: string | null): string[] {
+  if (!raw) return []
+  try { return JSON.parse(raw) as string[] } catch { return [] }
+}
+
+function formatQuestion(q: QuestionRow) {
+  return { ...q, tags: parseTags(q.tags) }
+}
+
 // GET /api/questions
 router.get('/', (req: Request, res: Response) => {
-  const { module: mod, difficulty, source, search, page = 1, pageSize = 100 } = req.query as Record<string, string | undefined>
+  const { module: mod, difficulty, source, search, page = '1', pageSize = '100' } = req.query as Record<string, string | undefined>
   const conditions: string[] = []
   const params: unknown[] = []
 
@@ -53,7 +64,7 @@ router.get('/', (req: Request, res: Response) => {
   const { total } = db.prepare(`SELECT COUNT(*) AS total FROM questions ${where}`).get(...params) as CountResult
   const data = db.prepare(`SELECT * FROM questions ${where} ORDER BY id LIMIT ? OFFSET ?`).all(...params, limit, offset) as QuestionRow[]
 
-  res.json({ data, total, page: pageNum, pageSize: limit })
+  res.json({ data: data.map(formatQuestion), total, page: pageNum, pageSize: limit })
 })
 
 // GET /api/questions/count
@@ -77,7 +88,7 @@ router.get('/ids-with-content', (_req: Request, res: Response) => {
 // GET /api/questions/module/:module
 router.get('/module/:module', (req: Request, res: Response) => {
   const data = db.prepare('SELECT * FROM questions WHERE module = ? ORDER BY id').all(req.params.module) as QuestionRow[]
-  res.json({ data })
+  res.json({ data: data.map(formatQuestion) })
 })
 
 // GET /api/questions/builtin-files
@@ -89,7 +100,7 @@ router.get('/builtin-files', (_req: Request, res: Response) => {
 router.get('/:id', (req: Request, res: Response) => {
   const data = db.prepare('SELECT * FROM questions WHERE id = ?').get(req.params.id) as QuestionRow | undefined
   if (!data) return res.status(404).json({ error: { code: 'NOT_FOUND', message: '题目不存在' } })
-  res.json({ data })
+  res.json({ data: formatQuestion(data) })
 })
 
 // POST /api/questions/bulk
