@@ -10,7 +10,8 @@ import type {
   StudyRecord,
   StudyStatus,
 } from '../types'
-import { type CategoryMap, DEFAULT_CATEGORY_MAP } from './db'
+import type { CategoryMap } from '@/api'
+export const DEFAULT_CATEGORY_MAP: CategoryMap = {}
 
 export interface ImportPreview {
   fileName: string

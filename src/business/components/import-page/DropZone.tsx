@@ -1,6 +1,6 @@
 import { useCallback, useRef, useState } from 'react'
 import { Spinner } from '@/components/ui'
-import { isJSONFile, isMDFile } from '@/lib/questionLoader'
+import { isJSONFile, isMDFile } from '@/lib/fileUtils'
 import { useNameSpace } from '@/utils'
 import styles from './DropZone.module.css'
 

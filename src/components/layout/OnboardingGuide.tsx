@@ -2,7 +2,7 @@ import { useCallback, useEffect, useMemo, useState } from 'react'
 import { useLocation } from 'react-router-dom'
 import { Button } from '@/components/ui'
 import { type CategoryMap, DEFAULT_CATEGORY_MAP, getCategoryMap } from '@/api/compat'
-import { BUILTIN_CATEGORIES } from '@/lib/questionLoader'
+import { BUILTIN_CATEGORIES } from '@/lib/fileUtils'
 import { useStudyStore } from '@/store/useStudyStore'
 
 const ONBOARDING_DONE_KEY = 'iface_onboarding_done_v1'

@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import { Button } from '@/components/ui'
-import { parseJSONSafe } from '@/lib/questionLoader'
+import { parseJSONSafe } from '@/lib/fileUtils'
 import { useNameSpace } from '@/utils'
 import styles from './PastePanel.module.css'
 

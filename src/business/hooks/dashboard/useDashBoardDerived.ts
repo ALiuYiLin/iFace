@@ -134,7 +134,7 @@ export function useDashBoardDerived(base: DashBoardBaseData): DashBoardDerivedDa
     )
       .then(setDailyIds)
       .finally(() => setDailyLoading(false))
-  }, [visibleQuestionIds, records, getDailyIds, dailyGoal])
+  }, [visibleQuestionIds, records, dailyGoal])
 
   return {
     hiddenModules,

@@ -36,7 +36,7 @@ import {
   mergeCategoryMaps,
   parseImportPreview,
 } from '@/lib/localBackup'
-import { BUILTIN_CATEGORIES } from '@/lib/questionLoader'
+import { BUILTIN_CATEGORIES } from '@/lib/fileUtils'
 import {
   AI_PROVIDER_PRESETS,
   type AIConfig,

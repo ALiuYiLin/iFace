@@ -1,12 +1,8 @@
 import { useCallback, useEffect, useState } from 'react'
 import { Button } from '@/components/ui'
-import { getAllQuestions } from '@/api/compat'
+import { getAllQuestions, loadBuiltinModules } from '@/api'
 import { invalidateQuestionsCache } from '@/hooks/useQuestions'
-import {
-  BUILTIN_MODULE_FILES,
-  BUILTIN_QUESTIONS_VERSION,
-  loadAllBuiltinModulesParallel,
-} from '@/lib/questionLoader'
+import { BUILTIN_MODULE_FILES, BUILTIN_QUESTIONS_VERSION } from '@/lib/fileUtils'
 import { useNameSpace } from '@/utils'
 import styles from './BuiltinLibraryCard.module.css'
 
@@ -32,7 +28,7 @@ export function BuiltinLibraryCard() {
     const force = Boolean(builtinCount && builtinCount > 0)
 
     try {
-      const results = await loadAllBuiltinModulesParallel(force)
+      const results = await loadBuiltinModules(force)
       const loaded = results.reduce((sum, result) => sum + result.loaded, 0)
       const failed = results.filter((result) =>
         result.errors.some((error) => error.index === -1 && result.loaded === 0),

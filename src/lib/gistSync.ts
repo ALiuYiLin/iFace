@@ -113,7 +113,7 @@ import {
   META_KEYS,
   saveCategoryMap,
   setMeta,
-} from './db'
+} from '@/api/compat'
 
 // ─── Constants ────────────────────────────────────────────────────────────────
 

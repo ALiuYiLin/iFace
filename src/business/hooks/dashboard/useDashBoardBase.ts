@@ -1,16 +1,20 @@
-import { useEffect, useState } from 'react'
-import { useQuestions } from '@/hooks/useQuestions'
+import { useCallback, useEffect, useState } from 'react'
+import { usePromise } from '@/hooks/usePromise'
 import { useStudyStore } from '@/store/useStudyStore'
-import { getCategories, getQuestionNotes } from '@/api'
-import type { CategoryMap, QuestionNote } from '@/api'
+import { getCategories, getQuestionNotes, getQuestions } from '@/api'
+import type { CategoryMap, Question, QuestionNote } from '@/api'
 import type { StudyStatus } from '@/types'
 import type { StreakData } from '@/store/useStudyStore'
 
 export interface DashBoardBaseData {
-  allQuestions: ReturnType<typeof useQuestions>['allQuestions']
+  allQuestions: Question[]
   loading: boolean
   initializing: boolean
-  getDailyIds: ReturnType<typeof useQuestions>['getDailyIds']
+  getDailyIds: (
+    recordMap: Record<string, { status: string; lastUpdated: number }>,
+    count?: number,
+    questionIds?: string[],
+  ) => Promise<string[]>
   records: Record<string, { status: StudyStatus; lastUpdated?: number }>
   streak: StreakData
   dailyGoal: number
@@ -20,13 +24,44 @@ export interface DashBoardBaseData {
   greeting: string
 }
 
+function getDailyRecommendations(
+  allIds: string[],
+  recordMap: Record<string, { status: string; lastUpdated: number }>,
+  count = 10,
+): Promise<string[]> {
+  const reviewIds = allIds
+    .filter((id) => recordMap[id]?.status === 'review')
+    .sort((a, b) => (recordMap[a]?.lastUpdated ?? 0) - (recordMap[b]?.lastUpdated ?? 0))
+
+  const unlearnedIds = allIds.filter((id) => !recordMap[id] || recordMap[id].status === 'unlearned')
+
+  const result: string[] = []
+  const seen = new Set<string>()
+  for (const id of [...reviewIds, ...unlearnedIds]) {
+    if (result.length >= count) break
+    if (!seen.has(id)) {
+      result.push(id)
+      seen.add(id)
+    }
+  }
+  return Promise.resolve(result)
+}
+
 export function useDashBoardBase(): DashBoardBaseData {
-  const { allQuestions, loading, initializing, getDailyIds } = useQuestions()
   const { records, streak, dailyGoal, hiddenCategories } = useStudyStore()
 
+  const [allQuestions, setAllQuestions] = useState<Question[]>([])
   const [categoryMap, setCategoryMap] = useState<CategoryMap>({})
   const [questionNotes, setQuestionNotes] = useState<QuestionNote[]>([])
   const [greeting, setGreeting] = useState('')
+  const [loading, loadQuestions] = usePromise(async () => {
+    const res = await getQuestions({ pageSize: 1000 })
+    setAllQuestions(res.data)
+  })
+
+  useEffect(() => {
+    loadQuestions()
+  }, [loadQuestions])
 
   useEffect(() => {
     getCategories().then(setCategoryMap).catch(() => setCategoryMap({}))
@@ -60,10 +95,22 @@ export function useDashBoardBase(): DashBoardBaseData {
     else setGreeting('晚上好，坚持就是胜利')
   }, [])
 
+  const getDailyIds = useCallback(
+    async (
+      rm: Record<string, { status: string; lastUpdated: number }>,
+      count = 10,
+      questionIds?: string[],
+    ): Promise<string[]> => {
+      const allIds = questionIds ?? allQuestions.map((q) => q.id)
+      return getDailyRecommendations(allIds, rm, count)
+    },
+    [allQuestions],
+  )
+
   return {
     allQuestions,
     loading,
-    initializing,
+    initializing: loading,
     getDailyIds,
     records,
     streak,

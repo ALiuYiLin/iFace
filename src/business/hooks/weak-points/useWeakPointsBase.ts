@@ -1,16 +1,27 @@
-import { useQuestions } from '@/hooks/useQuestions'
+import { useEffect, useState } from 'react'
+import { usePromise } from '@/hooks/usePromise'
 import { useStudyStore } from '@/store/useStudyStore'
+import { getQuestions } from '@/api'
+import type { Question } from '@/api'
 
 export interface WeakPointsBaseData {
-  allQuestions: ReturnType<typeof useQuestions>['allQuestions']
+  allQuestions: Question[]
   initializing: boolean
   records: ReturnType<typeof useStudyStore>['records']
   setStatus: ReturnType<typeof useStudyStore>['setStatus']
 }
 
 export function useWeakPointsBase(): WeakPointsBaseData {
-  const { allQuestions, initializing } = useQuestions()
   const { records, setStatus } = useStudyStore()
+  const [allQuestions, setAllQuestions] = useState<Question[]>([])
+  const [loading, loadQuestions] = usePromise(async () => {
+    const res = await getQuestions({ pageSize: 1000 })
+    setAllQuestions(res.data)
+  })
 
-  return { allQuestions, initializing, records, setStatus }
+  useEffect(() => {
+    loadQuestions()
+  }, [loadQuestions])
+
+  return { allQuestions, initializing: loading, records, setStatus }
 }
