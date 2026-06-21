@@ -7,6 +7,7 @@ import { defineConfig } from 'vite'
 const pkg = JSON.parse(readFileSync(resolve(__dirname, 'package.json'), 'utf-8'))
 
 export default defineConfig({
+  base: process.env.VITE_ELECTRON ? './' : '/',
   plugins: [
     react(),
     tailwindcss(),

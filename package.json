@@ -3,28 +3,15 @@
   "private": true,
   "version": "1.4.2",
   "type": "module",
+  "main": "dist-electron/main/main.js",
   "scripts": {
     "dev": "vite",
+    "dev:electron": "npm run build:electron && concurrently -k \"vite\" \"wait-on http://localhost:5173 && cross-env VITE_ELECTRON=1 electron .\"",
     "build": "tsc -b && vite build",
+    "build:electron": "tsc -p electron/tsconfig.json",
+    "build:electron:prod": "tsc -b && cross-env VITE_ELECTRON=1 vite build && tsc -p electron/tsconfig.json",
     "preview": "vite preview",
-    "lint": "biome check --write .",
-    "format": "biome format --write .",
-    "check": "biome check .",
-    "build:learning-checks": "bun scripts/buildLearningChecks.ts",
-    "check:ai": "bun scripts/checkAI.ts",
-    "check:backup": "bun scripts/checkBackup.ts",
-    "check:docs": "bun scripts/checkDocsAssets.ts",
-    "check:external": "bun scripts/checkExternalServices.ts",
-    "check:external-records": "bun scripts/checkExternalSmokeRecords.ts",
-    "smoke:external:ai": "bun run check:external -- --ai --record docs/external-ai-smoke-result.json",
-    "smoke:external:gist": "bun run check:external -- --gist --record docs/external-gist-smoke-result.json",
-    "check:pwa": "bun scripts/checkPWAAssets.ts",
-    "check:quality-gate": "bun scripts/checkQualityGate.ts",
-    "check:questions": "bun scripts/checkQuestions.ts",
-    "check:release": "bun scripts/checkReleaseReadiness.ts",
-    "check:sync": "bun scripts/checkGistSync.ts",
-    "check:version": "bun scripts/checkVersionSync.ts",
-    "check:all": "bun run check && bun run check:version && bun run check:release && bun run check:quality-gate && bun run check:docs && bun run check:external-records && bun run check:backup && bun run check:questions && bun run check:sync && bun run check:ai && bun run build && bun run check:pwa"
+    "electron": "electron ."
   },
   "dependencies": {
     "axios": "^1.18.0",
@@ -49,8 +36,12 @@
     "@types/react-dom": "^19.2.3",
     "@types/uuid": "^11.0.0",
     "@vitejs/plugin-react": "^5.1.1",
+    "concurrently": "^9.1.2",
+    "cross-env": "^7.0.3",
+    "electron": "^42.4.1",
     "tailwindcss": "^4.2.1",
     "typescript": "~5.9.3",
     "vite": "^7.3.1",
+    "wait-on": "^8.0.3"
   }
 }

@@ -1,12 +1,19 @@
 import axios from 'axios'
 
-const BASE_URL = import.meta.env.VITE_API_BASE_URL ?? '/api'
+const DEFAULT_BASE_URL = import.meta.env.VITE_API_BASE_URL ?? '/api'
 
 const api = axios.create({
-  baseURL: BASE_URL,
+  baseURL: DEFAULT_BASE_URL,
   timeout: 30000,
   headers: { 'Content-Type': 'application/json' },
 })
+
+// In Electron, update baseURL from main process (resolves synchronously via IPC)
+if (window.electronAPI) {
+  window.electronAPI.getApiBaseUrl().then((url) => {
+    api.defaults.baseURL = url
+  })
+}
 
 api.interceptors.response.use(
   (res) => res.data,
