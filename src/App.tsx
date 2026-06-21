@@ -4,7 +4,6 @@ import { Navbar } from '@/components/layout/Navbar'
 import { OnboardingGuide } from '@/components/layout/OnboardingGuide'
 import { Spinner } from '@/components/ui'
 import { AppErrorBoundary } from '@/components/ui/AppErrorBoundary'
-import { PWAUpdatePrompt } from '@/components/ui/PWAUpdatePrompt'
 import { installAppRecoveryHandlers } from '@/lib/appRecovery'
 import { routeLoaders } from '@/lib/routePreload'
 
@@ -123,7 +122,6 @@ export default function App() {
           <AppRoutes />
         </main>
         <OnboardingGuide />
-        <PWAUpdatePrompt />
       </div>
     </BrowserRouter>
   )
