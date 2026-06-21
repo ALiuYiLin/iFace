@@ -603,43 +603,44 @@ export function useStudyStore() {
   )
 
   return {
-    records: state.records,
-    theme: state.theme,
-    studyMode: state.studyMode,
-    answerNavigationMode: state.answerNavigationMode,
-    mobileQuestionNavEnabled: state.mobileQuestionNavEnabled,
-    aiFabVisible: state.aiFabVisible,
-    streak: state.streak,
-    dailyGoal: state.dailyGoal,
-    hiddenCategories: state.hiddenCategories,
-    initialized: state.initialized,
+    // ── Data ─────────────────────────────────────────
+    records: state.records,               // remote (API: getStudyRecords / putStudyRecord)
+    theme: state.theme,                   // local (localStorage: iface_theme)
+    studyMode: state.studyMode,           // local (localStorage: iface_study_mode)
+    answerNavigationMode: state.answerNavigationMode, // local (localStorage)
+    mobileQuestionNavEnabled: state.mobileQuestionNavEnabled, // local (localStorage)
+    aiFabVisible: state.aiFabVisible,     // local (localStorage: iface_ai_fab_visible)
+    streak: state.streak,                 // local (localStorage: iface_streak)
+    dailyGoal: state.dailyGoal,           // local (localStorage: iface_daily_goal)
+    hiddenCategories: state.hiddenCategories, // local (localStorage: iface_hidden_categories)
+    initialized: state.initialized,       // local (useReducer state)
 
-    // Derived reactive values (safe as useMemo/useEffect deps)
-    statusCounts,
+    // ── Derived ──────────────────────────────────────
+    statusCounts,                         // derived from records
 
-    // Actions
-    setStatus,
-    clearRecord,
-    resetAll,
-    setTheme,
-    toggleTheme,
-    setStudyMode,
-    setAnswerNavigationMode,
-    setMobileQuestionNavEnabled,
-    setAiFabVisible,
-    setDailyGoal,
-    setHiddenCategories,
-    setCategoryVisibility,
-    incrementStreak,
-    resetStreak,
-    toggleCategoryVisibility,
+    // ── Actions ──────────────────────────────────────
+    setStatus,                            // remote → API putStudyRecord
+    clearRecord,                          // remote → API deleteStudyRecord
+    resetAll,                             // remote → API clearStudyRecords
+    setTheme,                             // local
+    toggleTheme,                          // local
+    setStudyMode,                         // local
+    setAnswerNavigationMode,              // local
+    setMobileQuestionNavEnabled,          // local
+    setAiFabVisible,                      // local
+    setDailyGoal,                         // local
+    setHiddenCategories,                  // local
+    setCategoryVisibility,                // local
+    incrementStreak,                      // local
+    resetStreak,                          // local
+    toggleCategoryVisibility,             // local
 
-    // Queries
-    getStatus,
-    getRecord,
-    getStatusCounts,
-    getWeakQuestions,
-    getEstimatedDays,
-    isCategoryHidden,
+    // ── Queries ──────────────────────────────────────
+    getStatus,                            // derived from records
+    getRecord,                            // derived from records
+    getStatusCounts,                      // derived from records
+    getWeakQuestions,                     // derived from records
+    getEstimatedDays,                     // derived from records
+    isCategoryHidden,                     // derived from hiddenCategories
   }
 }
