@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { useLocation } from 'react-router-dom'
 import { Button } from '@/components/ui'
-import { type CategoryMap, DEFAULT_CATEGORY_MAP, getCategoryMap } from '@/lib/db'
+import { type CategoryMap, DEFAULT_CATEGORY_MAP, getCategoryMap } from '@/api/compat'
 import { BUILTIN_CATEGORIES } from '@/lib/questionLoader'
 import { useStudyStore } from '@/store/useStudyStore'
 

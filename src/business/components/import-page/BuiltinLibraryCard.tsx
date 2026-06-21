@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useState } from 'react'
 import { Button } from '@/components/ui'
-import { getAllQuestions } from '@/lib/db'
+import { getAllQuestions } from '@/api/compat'
 import { invalidateQuestionsCache } from '@/hooks/useQuestions'
 import {
   BUILTIN_MODULE_FILES,

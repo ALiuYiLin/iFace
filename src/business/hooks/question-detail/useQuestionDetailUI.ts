@@ -10,7 +10,7 @@ import {
   putQuestionAnswerAnnotation,
   putQuestionAnswerOverride,
   setQuestionStarred,
-} from '@/lib/db'
+} from '@/api/compat'
 import { loadLearningChecksForQuestion, type LearningCheckQuestion } from '@/lib/learningCheck'
 import { createPracticeSessionPath } from '@/lib/practiceSession'
 import { clearSessionReview, useStudyStore } from '@/store/useStudyStore'

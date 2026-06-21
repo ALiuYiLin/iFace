@@ -1,4 +1,4 @@
-import type { CategoryMap } from '@/lib/db'
+import type { CategoryMap } from '@/api'
 import type { Question } from '@/types'
 
 export function getHiddenModules(

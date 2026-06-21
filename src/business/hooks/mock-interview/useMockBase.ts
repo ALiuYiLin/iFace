@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useState } from 'react'
 import { useSpeechRecognition } from '@/hooks/useSpeechRecognition'
 import { type ChatCompletionMessage, requestChatCompletionStream } from '@/lib/aiClient'
-import { deleteMockInterview, getAllMockInterviews, getAllQuestions, putMockInterview } from '@/lib/db'
+import { getMockInterviews, getQuestions, putMockInterview, deleteMockInterview } from '@/api'
 import { useAIStore } from '@/store/useAIStore'
 import type { MockInterviewSession, Question } from '@/types'
 
@@ -13,13 +13,13 @@ export function useMockBase(options?: { onFinalTranscript?: (text: string) => vo
   const aiReady = config.enabled && config.apiKey.trim().length > 0
 
   const loadSessions = useCallback(async () => {
-    const loaded = await getAllMockInterviews()
+    const loaded = await getMockInterviews()
     setSessions(loaded)
   }, [])
 
   useEffect(() => {
     loadSessions()
-    getAllQuestions().then(setQuestions)
+    getQuestions({ pageSize: 1000 }).then((res) => setQuestions(res.data))
   }, [loadSessions])
 
   const requestAI = useCallback(
@@ -48,7 +48,7 @@ export function useMockBase(options?: { onFinalTranscript?: (text: string) => vo
 
   const saveSession = useCallback(async (session: MockInterviewSession) => {
     const next = { ...session, updatedAt: Date.now() }
-    await putMockInterview(next)
+    await putMockInterview(next.id, next)
     setSessions((prev) =>
       [next, ...prev.filter((item) => item.id !== next.id)].sort(
         (a, b) => b.updatedAt - a.updatedAt,

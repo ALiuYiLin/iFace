@@ -1,9 +1,8 @@
 import { useEffect, useState } from 'react'
 import { useQuestions } from '@/hooks/useQuestions'
 import { useStudyStore } from '@/store/useStudyStore'
-import { getCategoryMap } from '@/lib/db'
-import type { CategoryMap } from '@/lib/db'
-import { DEFAULT_CATEGORY_MAP } from '@/lib/db'
+import { getCategories } from '@/api'
+import type { CategoryMap } from '@/api'
 
 export interface PracticeBaseData {
   allQuestions: ReturnType<typeof useQuestions>['allQuestions']
@@ -16,10 +15,10 @@ export interface PracticeBaseData {
 export function usePracticeBase(): PracticeBaseData {
   const { allQuestions, initializing } = useQuestions()
   const { records, hiddenCategories } = useStudyStore()
-  const [categoryMap, setCategoryMap] = useState<CategoryMap>({ ...DEFAULT_CATEGORY_MAP })
+  const [categoryMap, setCategoryMap] = useState<CategoryMap>({})
 
   useEffect(() => {
-    getCategoryMap().then(setCategoryMap)
+    getCategories().then(setCategoryMap).catch(() => setCategoryMap({}))
   }, [])
 
   return { allQuestions, initializing, records, hiddenCategories, categoryMap }

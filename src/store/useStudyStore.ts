@@ -162,13 +162,7 @@ function saveHiddenCategories(s: Set<string>): void {
   } catch {}
 }
 
-import {
-  clearAllStudyRecords,
-  deleteStudyRecord,
-  getAllStudyRecords,
-  putStudyRecord,
-} from '@/lib/db'
-import { invalidateDailyCache } from '@/lib/questionLoader'
+import { clearStudyRecords, deleteStudyRecord as apiDeleteStudyRecord, getStudyRecords, putStudyRecord as apiPutStudyRecord } from '@/api'
 import type { StudyRecord, StudyRecordMap, StudyStatus } from '@/types'
 
 // ─── Theme ────────────────────────────────────────────────────────────────────
@@ -376,9 +370,11 @@ export function useStudyStore() {
     const aiFabVisible = loadAiFabVisible()
     const streak = loadStreak()
     const dailyGoal = loadDailyGoal()
-    getAllStudyRecords().then((records) => {
+    getStudyRecords().then((records) => {
       const map: StudyRecordMap = {}
-      for (const r of records) map[r.questionId] = r
+      for (const r of records) {
+        map[r.question_id] = { questionId: r.question_id, status: r.status, lastUpdated: r.last_updated, reviewCount: r.review_count }
+      }
       dispatch({
         type: 'INIT',
         records: map,
@@ -441,21 +437,19 @@ export function useStudyStore() {
     const action: Action = { type: 'SET_RECORD', record }
     broadcast(action)
     // Persist
-    await putStudyRecord(record)
-    await invalidateDailyCache()
+    await apiPutStudyRecord(record.questionId, { status: record.status, reviewCount: record.reviewCount, lastUpdated: record.lastUpdated })
   }, [])
 
   const clearRecord = useCallback(async (questionId: string) => {
     const action: Action = { type: 'DELETE_RECORD', questionId }
     broadcast(action)
-    await deleteStudyRecord(questionId)
+    await apiDeleteStudyRecord(questionId)
   }, [])
 
   const resetAll = useCallback(async () => {
     const action: Action = { type: 'RESET_RECORDS' }
     broadcast(action)
-    await clearAllStudyRecords()
-    await invalidateDailyCache()
+    await clearStudyRecords()
   }, [])
 
   const setTheme = useCallback((theme: 'light' | 'dark') => {
@@ -513,7 +507,6 @@ export function useStudyStore() {
     saveHiddenCategories(next)
     const action: Action = { type: 'SET_HIDDEN_CATEGORIES', hiddenCategories: [...next] }
     broadcast(action)
-    void invalidateDailyCache()
   }, [])
 
   const setCategoryVisibility = useCallback(

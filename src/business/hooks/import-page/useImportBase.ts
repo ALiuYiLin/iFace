@@ -1,6 +1,6 @@
 import { useCallback } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { getCustomSources } from '@/lib/db'
+import { getCustomSources } from '@/api'
 
 export function useImportBase() {
   const navigate = useNavigate()

@@ -2,7 +2,7 @@ import { useCallback, useEffect, useRef, useState } from 'react'
 import { useBufferedText } from '@/hooks/useBufferedText'
 import { requestChatCompletionStream } from '@/lib/aiClient'
 import type { ChatCompletionMessage } from '@/lib/aiClient'
-import { deleteJdMatchReport, getAllJdMatchReports, putJdMatchReport } from '@/lib/db'
+import { getJdMatchReports, putJdMatchReport, deleteJdMatchReport } from '@/api'
 import { parseResumeFile } from '@/lib/resumeParser'
 import type { JdMatchReport } from '@/types'
 import type { JdMatchBaseData } from './useJdMatchBase'
@@ -41,7 +41,6 @@ function stripGeneratedTitle(markdown: string): string {
   if (firstContentIndex === -1 || !isGeneratedTitleLine(lines[firstContentIndex])) {
     return markdown.trim()
   }
-
   return [...lines.slice(0, firstContentIndex), ...lines.slice(firstContentIndex + 1)]
     .join('\n')
     .trim()
@@ -65,11 +64,7 @@ function normalizeGeneratedTitle(line: string): string {
     .trim()
 }
 
-function buildMessages(input: {
-  roleTitle: string
-  jdText: string
-  resumeText: string
-}): ChatCompletionMessage[] {
+function buildMessages(input: { roleTitle: string; jdText: string; resumeText: string }): ChatCompletionMessage[] {
   return [
     {
       role: 'system',
@@ -130,11 +125,7 @@ export function useJdMatchUI(base: JdMatchBaseData) {
   const [report, setReport] = useState('')
   const [savedReports, setSavedReports] = useState<JdMatchReport[]>([])
   const [activeReportId, setActiveReportId] = useState<string | null>(null)
-  const {
-    text: streamingText,
-    appendText: appendStreamingText,
-    resetText: setStreamingText,
-  } = useBufferedText()
+  const { text: streamingText, appendText: appendStreamingText, resetText: setStreamingText } = useBufferedText()
   const [error, setError] = useState<string | null>(null)
   const [settingsOpen, setSettingsOpen] = useState(false)
   const [parsingResume, setParsingResume] = useState(false)
@@ -143,19 +134,16 @@ export function useJdMatchUI(base: JdMatchBaseData) {
   const displayReport = streamingText || report
 
   const loadReports = useCallback(async () => {
-    const loaded = await getAllJdMatchReports()
+    const loaded = await getJdMatchReports()
     setSavedReports(loaded)
   }, [])
 
-  useEffect(() => {
-    loadReports()
-  }, [loadReports])
+  useEffect(() => { loadReports() }, [loadReports])
 
   const handleResumeFile = useCallback(async (file: File) => {
     setParsingResume(true)
     setResumeMessage(null)
     setError(null)
-
     try {
       const parsed = await parseResumeFile(file)
       setResumeText(parsed.text)
@@ -170,18 +158,9 @@ export function useJdMatchUI(base: JdMatchBaseData) {
   }, [])
 
   const handleAnalyze = useCallback(async () => {
-    if (!aiReady) {
-      setError('请先在设置中启用 AI 并配置 API Key')
-      return
-    }
-    if (!jdText.trim()) {
-      setError('请粘贴岗位 JD')
-      return
-    }
-    if (!resumeText.trim()) {
-      setError('请上传或粘贴简历文本')
-      return
-    }
+    if (!aiReady) { setError('请先在设置中启用 AI 并配置 API Key'); return }
+    if (!jdText.trim()) { setError('请粘贴岗位 JD'); return }
+    if (!resumeText.trim()) { setError('请上传或粘贴简历文本'); return }
 
     setAnalyzing(true)
     setError(null)
@@ -191,18 +170,10 @@ export function useJdMatchUI(base: JdMatchBaseData) {
     try {
       const result = await requestChatCompletionStream({
         config: {
-          apiKey: config.apiKey,
-          baseUrl: config.baseUrl,
-          model: config.model,
-          temperature: Math.min(0.7, Math.max(0.2, config.temperature)),
-          maxTokens: 2400,
-          provider: config.provider,
+          apiKey: config.apiKey, baseUrl: config.baseUrl, model: config.model,
+          temperature: Math.min(0.7, Math.max(0.2, config.temperature)), maxTokens: 2400, provider: config.provider,
         },
-        messages: buildMessages({
-          roleTitle: roleTitle.trim() || DEFAULT_ROLE,
-          jdText: jdText.trim(),
-          resumeText: resumeText.trim(),
-        }),
+        messages: buildMessages({ roleTitle: roleTitle.trim() || DEFAULT_ROLE, jdText: jdText.trim(), resumeText: resumeText.trim() }),
         onDelta: appendStreamingText,
       })
       const markdown = stripGeneratedTitle(result)
@@ -220,7 +191,7 @@ export function useJdMatchUI(base: JdMatchBaseData) {
         updatedAt: now,
       }
 
-      await putJdMatchReport(nextReport)
+      await putJdMatchReport(nextReport.id, nextReport)
       setSavedReports((prev) => [nextReport, ...prev].sort((a, b) => b.updatedAt - a.updatedAt))
       setActiveReportId(nextReport.id)
       setReport(markdown)
@@ -230,54 +201,30 @@ export function useJdMatchUI(base: JdMatchBaseData) {
     } finally {
       setAnalyzing(false)
     }
-  }, [
-    aiReady,
-    appendStreamingText,
-    config,
-    jdText,
-    resumeFileName,
-    resumeText,
-    roleTitle,
-    setStreamingText,
-  ])
+  }, [aiReady, appendStreamingText, config, jdText, resumeFileName, resumeText, roleTitle, setStreamingText])
 
-  const handleSelectReport = useCallback(
-    (item: JdMatchReport) => {
-      setRoleTitle(item.roleTitle)
-      setJdText(item.jdText)
-      setResumeText(item.resumeText)
-      setResumeFileName(item.resumeFileName ?? null)
-      setResumeMessage(null)
-      setReport(item.markdown)
-      setStreamingText('')
-      setError(null)
-      setActiveReportId(item.id)
-    },
-    [setStreamingText],
-  )
-
-  const handleDeleteReport = useCallback(
-    async (id: string) => {
-      await deleteJdMatchReport(id)
-      setSavedReports((prev) => prev.filter((item) => item.id !== id))
-      if (activeReportId === id) {
-        setActiveReportId(null)
-        setReport('')
-      }
-    },
-    [activeReportId],
-  )
-
-  const handleNewDiagnosis = useCallback(() => {
-    setRoleTitle(DEFAULT_ROLE)
-    setJdText('')
-    setResumeText('')
-    setResumeFileName(null)
+  const handleSelectReport = useCallback((item: JdMatchReport) => {
+    setRoleTitle(item.roleTitle)
+    setJdText(item.jdText)
+    setResumeText(item.resumeText)
+    setResumeFileName(item.resumeFileName ?? null)
     setResumeMessage(null)
-    setReport('')
+    setReport(item.markdown)
     setStreamingText('')
     setError(null)
-    setActiveReportId(null)
+    setActiveReportId(item.id)
+  }, [setStreamingText])
+
+  const handleDeleteReport = useCallback(async (id: string) => {
+    await deleteJdMatchReport(id)
+    setSavedReports((prev) => prev.filter((item) => item.id !== id))
+    if (activeReportId === id) { setActiveReportId(null); setReport('') }
+  }, [activeReportId])
+
+  const handleNewDiagnosis = useCallback(() => {
+    setRoleTitle(DEFAULT_ROLE); setJdText(''); setResumeText('')
+    setResumeFileName(null); setResumeMessage(null); setReport('')
+    setStreamingText(''); setError(null); setActiveReportId(null)
   }, [setStreamingText])
 
   const handleCopyReport = useCallback(async () => {
@@ -286,33 +233,12 @@ export function useJdMatchUI(base: JdMatchBaseData) {
   }, [displayReport])
 
   return {
-    fileRef,
-    roleTitle,
-    jdText,
-    resumeText,
-    resumeFileName,
-    resumeMessage,
-    report,
-    savedReports,
-    activeReportId,
-    streamingText,
-    displayReport,
-    error,
-    settingsOpen,
-    parsingResume,
-    analyzing,
-    setRoleTitle,
-    setJdText,
-    setResumeText,
-    setResumeFileName,
-    setResumeMessage,
-    setSettingsOpen,
-    setError,
-    handleResumeFile,
-    handleAnalyze,
-    handleSelectReport,
-    handleDeleteReport,
-    handleNewDiagnosis,
-    handleCopyReport,
+    fileRef, roleTitle, jdText, resumeText, resumeFileName, resumeMessage,
+    report, savedReports, activeReportId, streamingText, displayReport,
+    error, settingsOpen, parsingResume, analyzing,
+    setRoleTitle, setJdText, setResumeText, setResumeFileName, setResumeMessage,
+    setSettingsOpen, setError,
+    handleResumeFile, handleAnalyze, handleSelectReport, handleDeleteReport,
+    handleNewDiagnosis, handleCopyReport,
   }
 }

@@ -1,10 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
-import { getAllQuestions } from '@/lib/db'
-import {
-  getDailyRecommendations,
-  loadAllBuiltinModulesParallel,
-  refreshBuiltinQuestionsIfNeeded,
-} from '@/lib/questionLoader'
+import { getQuestions } from '@/api'
 import type { Difficulty, FilterState, Module, Question, StudyStatus } from '@/types'
 
 export type SortKey = 'default' | 'difficulty-asc' | 'difficulty-desc' | 'module'
@@ -35,71 +30,37 @@ interface UseQuestionsReturn {
 
 let _allQuestions: Question[] = []
 let _loaded = false
-let _loading = false
 const _waiters: Array<() => void> = []
+
+async function fetchAllQuestions(): Promise<Question[]> {
+  const res = await getQuestions({ pageSize: 1000 })
+  return res.data
+}
 
 async function ensureLoaded(): Promise<Question[]> {
   if (_loaded) return _allQuestions
-
   if (_loading) {
     return new Promise<Question[]>((resolve) => {
       _waiters.push(() => resolve(_allQuestions))
     })
   }
-
   _loading = true
-
-  // Try to load from IndexedDB first
-  let cached = await getAllQuestions()
-  if (cached.length > 0) {
-    try {
-      const refreshed = await refreshBuiltinQuestionsIfNeeded()
-      if (refreshed) {
-        cached = await getAllQuestions()
-      }
-    } catch (err) {
-      console.warn('Failed to refresh built-in questions, using cached data', err)
-    }
-
-    _allQuestions = cached
+  try {
+    const res = await fetchAllQuestions()
+    _allQuestions = res
     _loaded = true
+  } finally {
     _loading = false
-    _waiters.forEach((fn) => {
-      fn()
-    })
+    _waiters.forEach((fn) => fn())
     _waiters.length = 0
-
-    // Background sync: fetch any new built-in modules
-    loadAllBuiltinModulesParallel().then(async () => {
-      const updated = await getAllQuestions()
-      if (updated.length !== _allQuestions.length) {
-        _allQuestions = updated
-        _waiters.forEach((fn) => {
-          fn()
-        })
-      }
-    })
-
-    return _allQuestions
   }
-
-  // First run: fetch all built-in modules
-  await loadAllBuiltinModulesParallel()
-  _allQuestions = await getAllQuestions()
-  _loaded = true
-  _loading = false
-  _waiters.forEach((fn) => {
-    fn()
-  })
-  _waiters.length = 0
-
   return _allQuestions
 }
 
+let _loading = false
+
 export function invalidateQuestionsCache() {
   _loaded = false
-  _loading = false
-  _allQuestions = []
 }
 
 // ─── Filter helper ────────────────────────────────────────────────────────────
@@ -166,16 +127,14 @@ export function useQuestions(
   sort: SortKey = 'default',
 ): UseQuestionsReturn {
   const [allQuestions, setAllQuestions] = useState<Question[]>(_allQuestions)
-  const [loading, setLoading] = useState(!_loaded)
-  const [initializing, setInitializing] = useState(!_loaded)
+  const [loading, setLoading] = useState(true)
+  const [initializing, setInitializing] = useState(true)
   const [error, setError] = useState<string | null>(null)
 
   const filterRef = useRef(filter)
   filterRef.current = filter
   const recordRef = useRef(recordMap)
   recordRef.current = recordMap
-  const sortRef = useRef(sort)
-  sortRef.current = sort
 
   const load = useCallback(async () => {
     setLoading(true)
@@ -200,14 +159,10 @@ export function useQuestions(
     await load()
   }, [load])
 
-  // ── Derived: filtered + sorted questions ──────────────────────────────────
-
   const filteredQuestions = useCallback((): Question[] => {
     if (!filter && !recordMap) return allQuestions
     return applyFilters(allQuestions, filter ?? {}, recordMap ?? {}, sort)
   }, [allQuestions, filter, recordMap, sort])()
-
-  // ── Lookup helpers ────────────────────────────────────────────────────────
 
   const getQuestionById = useCallback(
     (id: string): Question | undefined => allQuestions.find((q) => q.id === id),
@@ -232,10 +187,7 @@ export function useQuestions(
   )
 
   const getAdjacentIds = useCallback(
-    (
-      currentId: string,
-      filteredIds: string[],
-    ): { prevId: string | null; nextId: string | null } => {
+    (currentId: string, filteredIds: string[]): { prevId: string | null; nextId: string | null } => {
       const idx = filteredIds.indexOf(currentId)
       if (idx === -1) return { prevId: null, nextId: null }
       return {
@@ -274,12 +226,16 @@ export function useQuestion(id: string | undefined): {
   useEffect(() => {
     if (!id) {
       setLoading(false)
+      setQuestion(undefined)
       return
     }
+    let cancelled = false
     setLoading(true)
-    ensureLoaded()
-      .then((qs) => setQuestion(qs.find((q) => q.id === id)))
-      .finally(() => setLoading(false))
+    import('@/api').then(({ getQuestion }) => {
+      if (cancelled) return
+      getQuestion(id).then(setQuestion).catch(() => setQuestion(undefined)).finally(() => setLoading(false))
+    })
+    return () => { cancelled = true }
   }, [id])
 
   return { question, loading }
@@ -307,4 +263,29 @@ export function usePracticeQuestions(
   }, [module, difficulty])
 
   return { questions, loading }
+}
+
+// ─── Daily recommendations (lightweight, copied from questionLoader) ──────────
+
+async function getDailyRecommendations(
+  allIds: string[],
+  recordMap: Record<string, { status: string; lastUpdated: number }>,
+  count = 10,
+): Promise<string[]> {
+  const reviewIds = allIds
+    .filter((id) => recordMap[id]?.status === 'review')
+    .sort((a, b) => (recordMap[a]?.lastUpdated ?? 0) - (recordMap[b]?.lastUpdated ?? 0))
+
+  const unlearnedIds = allIds.filter((id) => !recordMap[id] || recordMap[id].status === 'unlearned')
+
+  const result: string[] = []
+  const seen = new Set<string>()
+  for (const id of [...reviewIds, ...unlearnedIds]) {
+    if (result.length >= count) break
+    if (!seen.has(id)) {
+      result.push(id)
+      seen.add(id)
+    }
+  }
+  return result
 }

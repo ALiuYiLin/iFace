@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react'
-import { getCategoryMap } from '@/lib/db'
+import { getCategoryMap } from '@/api/compat'
 import { useNameSpace } from '@/utils'
 import styles from './CategoriesDisplay.module.css'
 

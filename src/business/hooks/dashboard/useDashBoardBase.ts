@@ -1,10 +1,8 @@
 import { useEffect, useState } from 'react'
 import { useQuestions } from '@/hooks/useQuestions'
 import { useStudyStore } from '@/store/useStudyStore'
-import { getAllQuestionNotes, getCategoryMap } from '@/lib/db'
-import type { CategoryMap } from '@/lib/db'
-import { DEFAULT_CATEGORY_MAP } from '@/lib/db'
-import type { QuestionNote } from '@/types'
+import { getCategories, getQuestionNotes } from '@/api'
+import type { CategoryMap, QuestionNote } from '@/api'
 import type { StudyStatus } from '@/types'
 import type { StreakData } from '@/store/useStudyStore'
 
@@ -26,19 +24,19 @@ export function useDashBoardBase(): DashBoardBaseData {
   const { allQuestions, loading, initializing, getDailyIds } = useQuestions()
   const { records, streak, dailyGoal, hiddenCategories } = useStudyStore()
 
-  const [categoryMap, setCategoryMap] = useState<CategoryMap>({ ...DEFAULT_CATEGORY_MAP })
+  const [categoryMap, setCategoryMap] = useState<CategoryMap>({})
   const [questionNotes, setQuestionNotes] = useState<QuestionNote[]>([])
   const [greeting, setGreeting] = useState('')
 
   useEffect(() => {
-    getCategoryMap().then(setCategoryMap)
+    getCategories().then(setCategoryMap).catch(() => setCategoryMap({}))
   }, [])
 
   useEffect(() => {
     let cancelled = false
     const load = async () => {
       try {
-        const notes = await getAllQuestionNotes()
+        const notes = await getQuestionNotes()
         if (!cancelled) setQuestionNotes(notes)
       } catch {
         if (!cancelled) setQuestionNotes([])

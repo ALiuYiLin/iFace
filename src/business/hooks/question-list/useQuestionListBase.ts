@@ -2,14 +2,8 @@ import { useEffect, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useQuestions } from '@/hooks/useQuestions'
 import { useStudyStore } from '@/store/useStudyStore'
-import {
-  getAllQuestionFlags,
-  getAllQuestionNotes,
-  getCategoryMap,
-  type CategoryMap,
-  DEFAULT_CATEGORY_MAP,
-} from '@/lib/db'
-import type { QuestionFlag, QuestionNote } from '@/types'
+import { getCategories, getQuestionFlags, getQuestionNotes } from '@/api'
+import type { CategoryMap, QuestionFlag, QuestionNote } from '@/api'
 
 export interface QuestionListBaseData {
   navigate: ReturnType<typeof useNavigate>
@@ -29,12 +23,12 @@ export function useQuestionListBase(): QuestionListBaseData {
   const { allQuestions, loading, initializing } = useQuestions()
   const { records, getStatus, hiddenCategories } = useStudyStore()
 
-  const [categoryMap, setCategoryMap] = useState<CategoryMap>({ ...DEFAULT_CATEGORY_MAP })
+  const [categoryMap, setCategoryMap] = useState<CategoryMap>({})
   const [questionFlags, setQuestionFlags] = useState<QuestionFlag[]>([])
   const [questionNotes, setQuestionNotes] = useState<QuestionNote[]>([])
 
   useEffect(() => {
-    getCategoryMap().then(setCategoryMap)
+    getCategories().then(setCategoryMap).catch(() => setCategoryMap({}))
   }, [])
 
   useEffect(() => {
@@ -42,8 +36,8 @@ export function useQuestionListBase(): QuestionListBaseData {
 
     const loadQuestionMeta = async () => {
       const [notesResult, flagsResult] = await Promise.allSettled([
-        getAllQuestionNotes(),
-        getAllQuestionFlags(),
+        getQuestionNotes(),
+        getQuestionFlags(),
       ])
 
       if (cancelled) return

@@ -2,14 +2,7 @@ import { useCallback, useEffect, useState } from 'react'
 import type { CustomImportResult } from '@/lib/questionLoader'
 import { importCustomQuestions, isMDFile, parseJSONSafe } from '@/lib/questionLoader'
 import { invalidateQuestionsCache } from '@/hooks/useQuestions'
-import {
-  deleteQuestionsBySource,
-  getActiveModules,
-  getAllQuestions,
-  getCustomSources,
-  removeCustomSource,
-  unregisterModuleFromCategories,
-} from '@/lib/db'
+import { getCustomSources, getQuestions, deleteQuestionsBySource, removeCustomSource } from '@/api'
 import { mdToQuestions } from '@/lib/mdToQuestions'
 
 type Tab = 'file' | 'paste'
@@ -38,12 +31,10 @@ export function useImportUI(): ImportUIState {
   const [customSources, setCustomSources] = useState<string[]>([])
   const [fileCategory, setFileCategory] = useState('')
 
-  // Load existing custom sources
   useEffect(() => {
-    getCustomSources().then(setCustomSources)
+    getCustomSources().then(setCustomSources).catch(() => setCustomSources([]))
   }, [])
 
-  // ── Import handler ──
   const handleImport = useCallback(
     async (data: unknown, sourceName: string, categoryName: string) => {
       setLoading(true)
@@ -52,10 +43,8 @@ export function useImportUI(): ImportUIState {
         setResults((prev) => [result, ...prev])
 
         if (result.loaded > 0) {
-          // Refresh custom sources list
           const updated = await getCustomSources()
           setCustomSources(updated)
-          // Invalidate in-memory cache so question list refreshes
           invalidateQuestionsCache()
         }
       } finally {
@@ -65,14 +54,12 @@ export function useImportUI(): ImportUIState {
     [],
   )
 
-  // ── File drop handler ──
   const handleFiles = useCallback(
     async (files: File[], category: string) => {
       setLoading(true)
       for (const file of files) {
         const text = await file.text()
 
-        // Handle .md files: convert via mdToQuestions first
         if (isMDFile(file)) {
           const { questions, errors } = mdToQuestions(text)
           if (questions.length === 0) {
@@ -92,7 +79,6 @@ export function useImportUI(): ImportUIState {
           continue
         }
 
-        // Handle .json files
         const parsed = parseJSONSafe(text)
         if (!parsed.ok) {
           setResults((prev) => [
@@ -113,7 +99,6 @@ export function useImportUI(): ImportUIState {
     [handleImport],
   )
 
-  // ── Paste handler ──
   const handlePaste = useCallback(
     async (json: string, source: string, category: string) => {
       const parsed = parseJSONSafe(json)
@@ -134,24 +119,22 @@ export function useImportUI(): ImportUIState {
     [handleImport],
   )
 
-  // ── Remove source ──
   const handleRemoveSource = useCallback(async (source: string) => {
     if (!confirm(`确定要删除来源「${source}」的所有题目吗？此操作不可撤销。`)) return
-    // Before deleting, find which modules belong to this source
-    const all = await getAllQuestions()
-    const affectedModules = [
-      ...new Set(
-        all
-          .filter((q) => q.source === `custom_${source}` || q.source === source)
-          .map((q) => q.module),
-      ),
-    ]
+
+    // Get affected modules before deleting
+    const allRes = await getQuestions({ source, pageSize: 1000 })
+    const affectedModules = [...new Set(allRes.data.map((q) => q.module))]
+
     await deleteQuestionsBySource(source)
     await removeCustomSource(source)
-    // Unregister modules that no longer have any questions
-    const remaining = await getActiveModules()
+
+    // Remove module references from categories
+    const { unregisterModuleFromCategories } = await import('@/api/categories')
+    const remainingRes = await getQuestions({ pageSize: 1000 })
+    const remainingModules = new Set(remainingRes.data.map((q) => q.module))
     for (const mod of affectedModules) {
-      if (!remaining.includes(mod)) {
+      if (!remainingModules.has(mod)) {
         await unregisterModuleFromCategories(mod)
       }
     }

@@ -8,7 +8,7 @@ import {
   getQuestionNoteImages,
   putQuestionNote,
   putQuestionNoteImage,
-} from '@/lib/db'
+} from '@/api/compat'
 import { formatReviewNoteTime } from '@/lib/feedbackNote'
 import { useNameSpace } from '@/utils'
 import type { QuestionNote, QuestionNoteImage } from '@/types'

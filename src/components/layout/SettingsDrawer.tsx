@@ -26,8 +26,7 @@ import {
   META_KEYS,
   resetDatabase,
   saveCategoryMap,
-  setMeta,
-} from '@/lib/db'
+} from '@/api/compat'
 import type { SyncResult } from '@/lib/gistSync'
 import { deleteBackupGist, pullFromGist, pushToGist } from '@/lib/gistSync'
 import {
