@@ -1,31 +1,36 @@
 import typescript from '@rollup/plugin-typescript'
 import resolve from '@rollup/plugin-node-resolve'
+import path from 'path'
+import { fileURLToPath } from 'url'
+
+const __dirname = path.dirname(fileURLToPath(import.meta.url))
+const root = path.resolve(__dirname, '..')
 
 export default [
   {
-    input: 'packages/main/src/main.ts',
+    input: path.join(root, 'packages/main/src/main.ts'),
     output: {
-      file: 'dist-electron/main/main.js',
+      file: path.join(root, 'dist-electron/main/main.js'),
       format: 'esm',
       sourcemap: true,
     },
     external: ['electron', 'path', 'url'],
     plugins: [
       resolve({ preferBuiltins: true }),
-      typescript({ tsconfig: 'tsconfig.main.json' }),
+      typescript({ tsconfig: path.join(root, 'tsconfig.main.json') }),
     ],
   },
   {
-    input: 'packages/preload/src/preload.ts',
+    input: path.join(root, 'packages/preload/src/preload.ts'),
     output: {
-      file: 'dist-electron/preload/preload.js',
+      file: path.join(root, 'dist-electron/preload/preload.js'),
       format: 'esm',
       sourcemap: true,
     },
     external: ['electron'],
     plugins: [
       resolve({ preferBuiltins: true }),
-      typescript({ tsconfig: 'tsconfig.preload.json' }),
+      typescript({ tsconfig: path.join(root, 'tsconfig.preload.json') }),
     ],
   },
 ]

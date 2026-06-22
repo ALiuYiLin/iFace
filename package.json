@@ -14,6 +14,9 @@
     "typecheck:electron:preload": "tsc --noEmit -p tsconfig.preload.json",
     "typecheck:electron": "npm run typecheck:electron:main && npm run typecheck:electron:preload",
     "preview": "vite preview",
+    "build:backend": "pnpm --filter iface-backend build",
+    "dev:backend": "pnpm --filter iface-backend dev",
+    "typecheck:backend": "pnpm --filter iface-backend typecheck",
     "electron": "electron ."
   },
   "dependencies": {
