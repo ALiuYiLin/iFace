@@ -16,7 +16,21 @@ app.use('/files', express.static(config.uploadDir))
 app.use(notFound)
 app.use(errorHandler)
 
-app.listen(config.port, () => {
+const server = app.listen(config.port, () => {
+  // JSON startup protocol — main process reads this from stdout
+  process.stdout.write(JSON.stringify({ status: 'ready', port: config.port }) + '\n')
   console.log(`[iFace Backend] Running on http://localhost:${config.port}`)
   console.log(`[iFace Backend] API base: http://localhost:${config.port}/api`)
+})
+
+server.on('error', (err: NodeJS.ErrnoException) => {
+  if (err.code === 'EADDRINUSE') {
+    process.stderr.write(JSON.stringify({ error: 'EADDRINUSE', port: config.port }) + '\n')
+    process.exit(1)
+  }
+  throw err
+})
+
+process.on('SIGTERM', () => {
+  server.close(() => process.exit(0))
 })

@@ -11,8 +11,15 @@ interface Config {
   corsOrigins: string
 }
 
+function parsePort(): number {
+  const arg = process.argv.find(a => a.startsWith('--port='))
+  if (arg) return parseInt(arg.split('=')[1], 10)
+  if (process.env.PORT) return parseInt(process.env.PORT, 10)
+  return 3000
+}
+
 const config: Config = {
-  port: process.env.PORT ? parseInt(process.env.PORT, 10) : 3000,
+  port: parsePort(),
   dbPath: process.env.DB_PATH ?? path.join(root, 'data', 'iface.db'),
   uploadDir: process.env.UPLOAD_DIR ?? path.join(root, 'uploads'),
   corsOrigins: process.env.CORS_ORIGINS ?? '*',

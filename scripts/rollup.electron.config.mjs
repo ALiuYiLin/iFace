@@ -14,7 +14,7 @@ export default [
       format: 'esm',
       sourcemap: true,
     },
-    external: ['electron', 'path', 'url'],
+    external: ['electron', 'path', 'url', 'child_process', 'net'],
     plugins: [
       resolve({ preferBuiltins: true }),
       typescript({ tsconfig: path.join(root, 'tsconfig.main.json') }),

@@ -1,16 +1,18 @@
 import { app, BrowserWindow, ipcMain } from 'electron'
 import path from 'path'
 import { fileURLToPath } from 'url'
+import { startBackendWithRetry } from './backend.js'
+import type { ChildProcess } from 'child_process'
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url))
 
 const isDev = !app.isPackaged
-const BACKEND_PORT = 3000
+
+let backendProc: ChildProcess | null = null
+let backendPort = 3000
 
 function getApiBaseUrl(): string {
-  // In dev mode, Vite proxy handles /api -> localhost:3000
-  // In prod mode, renderer loads from file:// so must use absolute URL
-  return isDev ? '/api' : `http://localhost:${BACKEND_PORT}/api`
+  return isDev ? '/api' : `http://localhost:${backendPort}/api`
 }
 
 function createWindow(): void {
@@ -38,7 +40,31 @@ function createWindow(): void {
 
 ipcMain.handle('get-api-base-url', () => getApiBaseUrl())
 
-app.whenReady().then(createWindow)
+app.whenReady().then(async () => {
+  if (isDev) {
+    // In dev mode, backend dist is in the workspace packages directory
+    const backendDist = path.join(__dirname, '../../packages/backend/dist/index.js')
+    try {
+      const result = await startBackendWithRetry(backendDist, 3000)
+      backendProc = result.proc
+      backendPort = result.port
+      console.log(`[Main] Backend started on port ${backendPort}`)
+    } catch (err) {
+      console.error('[Main] Failed to start backend:', err)
+      app.quit()
+      return
+    }
+  }
+
+  createWindow()
+})
+
+app.on('before-quit', () => {
+  if (backendProc) {
+    backendProc.kill('SIGTERM')
+    backendProc = null
+  }
+})
 
 app.on('window-all-closed', () => {
   if (process.platform !== 'darwin') {
