@@ -1,0 +1,12 @@
+{
+  "name": "@iface/electron-main",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "typecheck": "tsc --noEmit -p ../../tsconfig.main.json"
+  },
+  "devDependencies": {
+    "electron": "^42.4.1"
+  }
+}

@@ -1,0 +1,12 @@
+{
+  "name": "@iface/electron-preload",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "typecheck": "tsc --noEmit -p ../../tsconfig.preload.json"
+  },
+  "devDependencies": {
+    "electron": "^42.4.1"
+  }
+}

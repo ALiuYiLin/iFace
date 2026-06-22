@@ -3,15 +3,13 @@
     "target": "ES2023",
     "module": "ESNext",
     "moduleResolution": "bundler",
-    "outDir": "../dist-electron",
-    "rootDir": ".",
     "strict": true,
     "esModuleInterop": true,
     "skipLibCheck": true,
     "forceConsistentCasingInFileNames": true,
     "sourceMap": true,
-    "declaration": false
+    "declaration": false,
+    "types": []
   },
-  "include": ["./**/*.ts"],
-  "exclude": ["node_modules"]
+  "include": ["packages/preload/src/**/*.ts"]
 }
