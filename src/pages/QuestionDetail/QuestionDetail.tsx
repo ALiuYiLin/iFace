@@ -2,6 +2,10 @@ import { useMemo } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
 import { SettingsDrawer } from '@/components/layout/SettingDrawer'
 import { Badge, Button, Kbd, Skeleton, Spinner } from '@/components/ui'
+import {
+  IconStar, IconNote, IconVisible, IconEdit, IconAI,
+  IconHelpCircle, IconCrosshair, IconArrowLeft, IconArrowRight, IconChevronRight,
+} from '@/components/icon'
 import { LearningCheckPanel } from '@/components/ui/LearningCheckPanel'
 import { MarkdownRenderer } from '@/components/ui/LazyMarkdownRenderer'
 import { DIFFICULTY_LABELS, DIFFICULTY_STYLES } from '@/types'
@@ -89,9 +93,9 @@ export default function QuestionDetail() {
   // ── Loading ──
   if (base.loading) {
     return (
-      <div className={`page-container animate-fade-in ${ns('loadingContainer')}`}>
+      <div className={ns('page-container', 'animate-fade-in', 'loadingContainer')}>
         <Skeleton width={180} height={13} />
-        <div className={`card ${ns('loadingCard')}`}>
+        <div className={ns('card', 'loadingCard')}>
           <div className={ns('loadingBadges')}>
             <Skeleton width={60} height={22} rounded="md" />
             <Skeleton width={48} height={22} rounded="md" />
@@ -106,8 +110,8 @@ export default function QuestionDetail() {
 
   if (!base.question) {
     return (
-      <div className={`page-container ${ns('pageContainer')}`}>
-        <div className={`card ${ns('notFound')}`}>
+      <div className={ns('page-container', 'pageContainer')}>
+        <div className={ns('card', 'notFound')}>
           <p className={ns('notFoundTitle')}>找不到该题目</p>
           <p className={ns('notFoundId')}>题目 ID: {base.id}</p>
           <Link to="/questions">
@@ -123,7 +127,7 @@ export default function QuestionDetail() {
   return (
     <>
       <div
-        className={`page-container question-detail-page ${ns('pageContainer')}${showMobileQuestionNav ? ` ${ns('hasMobileNav')}` : ''}`}
+        className={ns('page-container', 'question-detail-page', 'pageContainer', showMobileQuestionNav && 'hasMobileNav')}
       >
         {/* Breadcrumb / Session progress */}
         <div className="animate-fade-in">
@@ -138,60 +142,27 @@ export default function QuestionDetail() {
               <Link to="/questions" className={ns('breadcrumbLink')}>
                 题库
               </Link>
-              <svg
-                width="10" height="10" viewBox="0 0 24 24" fill="none"
-                stroke="currentColor" strokeWidth="2" strokeLinecap="round"
-                strokeLinejoin="round" className={ns('breadcrumbChevron')}
-              >
-                <polyline points="9 18 15 12 9 6" />
-              </svg>
-              <Link
-                to={`/questions?module=${encodeURIComponent(base.question.module)}`}
-                className={ns('breadcrumbLink')}
-              >
+              <IconChevronRight className={ns('breadcrumbChevron')} />
+              <Link to={`/questions?module=${encodeURIComponent(base.question.module)}`} className={ns('breadcrumbLink')}>
                 {base.question.module}
               </Link>
-              <svg
-                width="10" height="10" viewBox="0 0 24 24" fill="none"
-                stroke="currentColor" strokeWidth="2" strokeLinecap="round"
-                strokeLinejoin="round" className={ns('breadcrumbChevron')}
-              >
-                <polyline points="9 18 15 12 9 6" />
-              </svg>
-              <span className={ns('breadcrumbCurrent')}>
-                {base.question.question.slice(0, 30)}…
-              </span>
+              <IconChevronRight className={ns('breadcrumbChevron')} />
+              <span className={ns('breadcrumbCurrent')}>{base.question.question.slice(0, 30)}…</span>
             </nav>
           )}
         </div>
 
         {/* Question Card */}
-        <div className={`card animate-fade-in stagger-1 ${ns('questionCard')}`}>
+        <div className={ns('card', 'animate-fade-in', 'stagger-1', 'questionCard')}>
           {/* Meta row */}
           <div className={ns('metaRow')}>
             <span className={ns('moduleBadge')}>{base.question.module}</span>
-            <Badge size="sm" variant="ghost" style={{
-              fontSize: 12,
-              fontWeight: 500,
-              padding: '3px 10px',
-              borderRadius: 6,
-              border: '1px solid',
-              color: diffStyle.color,
-              background: diffStyle.background,
-              borderColor: diffStyle.borderColor,
-            }}>
+            <Badge size="sm" variant="ghost" className={ns('diffBadge')}
+              style={{ color: diffStyle.color, background: diffStyle.background, borderColor: diffStyle.borderColor }}>
               {DIFFICULTY_LABELS[base.question.difficulty]}
             </Badge>
             {derived.currentStatus !== 'unlearned' && (
-              <Badge size="sm" variant="ghost" style={{
-                fontSize: 11,
-                fontWeight: 500,
-                padding: '2px 8px',
-                borderRadius: 5,
-                background: derived.currentStatus === 'mastered' ? 'var(--success-light)' : 'var(--warning-light)',
-                color: derived.currentStatus === 'mastered' ? 'var(--success)' : 'var(--warning)',
-                border: `1px solid ${derived.currentStatus === 'mastered' ? 'rgba(16,185,129,0.2)' : 'rgba(245,158,11,0.2)'}`,
-              }}>
+              <Badge size="sm" variant="ghost" className={ns('statusBadge')} data-status={derived.currentStatus}>
                 {derived.currentStatus === 'mastered' ? '已掌握' : '待复习'}
               </Badge>
             )}
@@ -202,25 +173,19 @@ export default function QuestionDetail() {
                 aria-pressed={ui.starred}
                 aria-label={ui.starred ? '取消重点题' : '标记为重点题'}
                 title={ui.starred ? '取消重点题' : '标记为重点题'}
-                className={`${ns('iconBtn')} ${ui.starred ? ns('iconBtnStarred') : ns('iconBtnUnstarred')}`}
+                className={ns('iconBtn', ui.starred ? 'iconBtnStarred' : 'iconBtnUnstarred')}
               >
-                <svg width="14" height="14" viewBox="0 0 24 24" fill={ui.starred ? 'currentColor' : 'none'} stroke="currentColor" strokeWidth="2.1" strokeLinecap="round" strokeLinejoin="round">
-                  <polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2" />
-                </svg>
+                <IconStar fill={ui.starred} />
               </button>
               <button
                 type="button"
                 onClick={() => ui.setNoteDrawerOpen(true)}
                 aria-label={ui.hasNote ? '打开题目笔记' : '添加题目笔记'}
                 title={`${ui.hasNote ? '打开题目笔记' : '添加题目笔记'}（N）`}
-                className={`${ns('iconBtn')} ${ns('iconBtnNote')} ${ui.hasNote ? ns('iconBtnHasNote') : ns('iconBtnNoNote')}`}
+                className={ns('iconBtn', 'iconBtnNote', ui.hasNote ? 'iconBtnHasNote' : 'iconBtnNoNote')}
               >
-                <span className={ns('noteDot')}>
-                  <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
-                    <path d="M4 19.5V5a2 2 0 0 1 2-2h12v18H6a2 2 0 0 1-2-1.5z" />
-                    <path d="M8 7h6" />
-                    <path d="M8 11h8" />
-                  </svg>
+                <span className={ns('noteWrap')}>
+                  <IconNote />
                   {ui.hasNote && <span className={ns('noteDot')} />}
                 </span>
               </button>
@@ -247,10 +212,7 @@ export default function QuestionDetail() {
           {/* Reveal button */}
           {!ui.answerVisible && (
             <button type="button" onClick={ui.handleRevealAnswer} className={ns('revealBtn')}>
-              <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z" />
-                <circle cx="12" cy="12" r="3" />
-              </svg>
+              <IconVisible />
               查看参考答案
               <Kbd>Space</Kbd>
             </button>
@@ -276,7 +238,7 @@ export default function QuestionDetail() {
 
         {/* Answer Card */}
         {ui.answerVisible && (
-          <div ref={ui.answerRef} className={`card animate-scale-in ${ns('answerCard')}`}>
+          <div ref={ui.answerRef} className={ns('card', 'animate-scale-in', 'answerCard')}>
             {/* Answer header */}
             <div className={ns('answerHeader')}>
               <div className={ns('answerHeaderLeft')}>
@@ -311,47 +273,26 @@ export default function QuestionDetail() {
                   active={ui.answerEditMode}
                   onClick={ui.handleStartAnswerEdit}
                 >
-                  <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
-                    <path d="M12 20h9" />
-                    <path d="M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4 12.5-12.5z" />
-                  </svg>
+                  <IconEdit />
                 </AnswerAIButton>
                 <AnswerAIButton
                   title={base.isAiEnabled ? '打开 AI 助手（A）' : 'AI 助手（请先配置，快捷键 A）'}
                   active={ui.aiDrawerOpen}
                   onClick={() => ui.setAiDrawerOpen(true)}
                 >
-                  <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                    <path d="M12 2a2 2 0 0 1 2 2c0 .74-.4 1.39-1 1.73V7h1a7 7 0 0 1 7 7h1a1 1 0 0 1 1 1v3a1 1 0 0 1-1 1h-1v1a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-1H2a1 1 0 0 1-1-1v-3a1 1 0 0 1 1-1h1a7 7 0 0 1 7-7h1V5.73c-.6-.34-1-.99-1-1.73a2 2 0 0 1 2-2z" />
-                    <circle cx="7.5" cy="14.5" r="1.5" />
-                    <circle cx="16.5" cy="14.5" r="1.5" />
-                  </svg>
+                  <IconAI />
                 </AnswerAIButton>
                 <AnswerAIButton
                   title={base.isAiEnabled ? '讲解题目' : '讲解题目（请先配置 AI）'}
                   onClick={() => ui.openAIWithPreset('question')}
                 >
-                  <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
-                    <circle cx="12" cy="12" r="10" />
-                    <path d="M9.1 9a3 3 0 1 1 4.9 2.3c-.9.6-1.4 1.2-1.4 2.4" />
-                    <line x1="12" y1="17" x2="12.01" y2="17" />
-                  </svg>
+                  <IconHelpCircle />
                 </AnswerAIButton>
                 <AnswerAIButton
                   title={base.isAiEnabled ? '讲解知识点' : '讲解知识点（请先配置 AI）'}
                   onClick={() => ui.openAIWithPreset('concept')}
                 >
-                  <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                    <circle cx="12" cy="12" r="3" />
-                    <path d="M12 4v2" />
-                    <path d="M12 18v2" />
-                    <path d="M4 12h2" />
-                    <path d="M18 12h2" />
-                    <path d="m6.3 6.3 1.4 1.4" />
-                    <path d="m16.3 16.3 1.4 1.4" />
-                    <path d="m17.7 6.3-1.4 1.4" />
-                    <path d="m7.7 16.3-1.4 1.4" />
-                  </svg>
+                  <IconCrosshair />
                 </AnswerAIButton>
               </div>
             </div>
@@ -374,7 +315,7 @@ export default function QuestionDetail() {
             ) : (
               <section
                 ref={ui.answerContentRef}
-                className={`prose answer-annotation-content ${ns('answerContent')}`}
+                className={ns('prose', 'answer-annotation-content', 'answerContent')}
                 aria-label="答案内容"
               >
                 <MarkdownRenderer content={ui.displayedAnswerText} />
@@ -494,7 +435,7 @@ export default function QuestionDetail() {
 
         {/* Streak counter pill */}
         {base.streak.currentStreak >= 2 && (
-          <div className={`animate-fade-in ${ns('streakPill')}`}>
+          <div className={ns('animate-fade-in', 'streakPill')}>
             <span className={ns('streakEmoji')}>🔥</span>
             <span className={ns('streakCount')}>{base.streak.currentStreak}</span>
             <span>连击</span>
@@ -511,31 +452,15 @@ export default function QuestionDetail() {
         </div>
 
         {/* Navigation */}
-        <div className={`animate-fade-in stagger-4 ${ns('navRow')}`}>
-          <button
-            type="button"
-            onClick={() => { ui.navigateTo(derived.prevId) }}
-            disabled={!derived.prevId}
-            className={ns('navBtn')}
-          >
-            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-              <line x1="19" y1="12" x2="5" y2="12" />
-              <polyline points="12 19 5 12 12 5" />
-            </svg>
+        <div className={ns('animate-fade-in', 'stagger-4', 'navRow')}>
+          <button type="button" onClick={() => { ui.navigateTo(derived.prevId) }} disabled={!derived.prevId} className={ns('navBtn')}>
+            <IconArrowLeft />
             上一题
           </button>
           <Link to="/questions" className={ns('backLink')}>返回列表</Link>
-          <button
-            type="button"
-            onClick={() => { ui.navigateTo(derived.nextId) }}
-            disabled={!derived.nextId}
-            className={ns('navBtn')}
-          >
+          <button type="button" onClick={() => { ui.navigateTo(derived.nextId) }} disabled={!derived.nextId} className={ns('navBtn')}>
             下一题
-            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-              <line x1="5" y1="12" x2="19" y2="12" />
-              <polyline points="12 5 19 12 12 19" />
-            </svg>
+            <IconArrowRight />
           </button>
         </div>
       </div>
@@ -584,13 +509,6 @@ export default function QuestionDetail() {
         />
       )}
 
-      {/* Global styles */}
-      <style>{`
-        @keyframes ai-dot-bounce {
-          0%, 60%, 100% { transform: translateY(0); opacity: 0.4; }
-          30% { transform: translateY(-4px); opacity: 1; }
-        }
-      `}</style>
     </>
   )
 }
