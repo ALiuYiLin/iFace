@@ -1,646 +1,105 @@
-import { useCallback, useEffect, useMemo, useReducer, useRef } from 'react'
-
-// ─── Streak / Gamification ────────────────────────────────────────────────────
+import { useCallback, useEffect, useMemo } from 'react'
+import { useAppDispatch, useAppSelector } from './hooks'
+import {
+  initStudy, setStatus as setStatusThunk, deleteRecord, resetAllRecords,
+  clearSessionReview as rtClearSessionReview,
+  setTheme, toggleTheme, setStudyMode, setAnswerNavigationMode,
+  setMobileQuestionNavEnabled, setAiFabVisible, incrementStreak,
+  resetStreak, setDailyGoal, setHiddenCategories, toggleCategoryVisibility,
+} from './slices/studySlice'
+import type { StudyRecord, StudyStatus } from '@/types'
 
 export interface StreakData {
-  currentStreak: number // consecutive questions answered today
-  bestStreak: number // all-time best streak in a single session
-  todayCount: number // total questions marked today
-  lastActivityDate: string // ISO date string "YYYY-MM-DD"
+  currentStreak: number
+  bestStreak: number
+  todayCount: number
+  lastActivityDate: string
 }
 
-const STREAK_KEY = 'iface_streak'
-
-// ─── Daily Goal ───────────────────────────────────────────────────────────────
+export type StudyMode = 'answer-first' | 'answer-alongside' | 'memory-only'
+export type AnswerNavigationMode = 'answer' | 'check'
 
 export const DAILY_GOAL_MIN = 5
 export const DAILY_GOAL_MAX = 50
 export const DAILY_GOAL_DEFAULT = 10
 
-const DAILY_GOAL_KEY = 'iface_daily_goal'
+export function clearSessionReview(questionId: string) { rtClearSessionReview(questionId) }
 
-function loadDailyGoal(): number {
-  try {
-    const v = localStorage.getItem(DAILY_GOAL_KEY)
-    if (v) {
-      const n = parseInt(v, 10)
-      if (!Number.isNaN(n) && n >= DAILY_GOAL_MIN && n <= DAILY_GOAL_MAX) return n
-    }
-  } catch {}
-  return DAILY_GOAL_DEFAULT
-}
-
-function saveDailyGoal(n: number): void {
-  try {
-    localStorage.setItem(DAILY_GOAL_KEY, String(n))
-  } catch {}
-}
-
-function todayStr(): string {
-  return new Date().toISOString().slice(0, 10)
-}
-
-function loadStreak(): StreakData {
-  try {
-    const raw = localStorage.getItem(STREAK_KEY)
-    if (raw) {
-      const parsed: StreakData = JSON.parse(raw)
-      // Reset today's count if it's a new day
-      if (parsed.lastActivityDate !== todayStr()) {
-        return { ...parsed, currentStreak: 0, todayCount: 0, lastActivityDate: todayStr() }
-      }
-      return parsed
-    }
-  } catch {}
-  return { currentStreak: 0, bestStreak: 0, todayCount: 0, lastActivityDate: todayStr() }
-}
-
-function saveStreak(data: StreakData): void {
-  try {
-    localStorage.setItem(STREAK_KEY, JSON.stringify(data))
-  } catch {}
-}
-
-// ─── Study Mode ───────────────────────────────────────────────────────────────
-
-export type StudyMode =
-  | 'answer-first' // 先作答，再展开参考答案（默认）
-  | 'answer-alongside' // 边看答案边做笔记
-  | 'memory-only' // 纯记忆模式，不作答直接翻答案
-
-const STUDY_MODE_KEY = 'iface_study_mode'
-
-function loadStudyMode(): StudyMode {
-  try {
-    const v = localStorage.getItem(STUDY_MODE_KEY)
-    if (v === 'answer-first' || v === 'answer-alongside' || v === 'memory-only') return v
-  } catch {}
-  return 'answer-first'
-}
-
-function saveStudyMode(mode: StudyMode): void {
-  try {
-    localStorage.setItem(STUDY_MODE_KEY, mode)
-  } catch {}
-}
-
-// ─── Answer Navigation Preference ────────────────────────────────────────────
-
-export type AnswerNavigationMode = 'answer' | 'check'
-
-const ANSWER_NAVIGATION_MODE_KEY = 'iface_answer_navigation_mode'
-
-function loadAnswerNavigationMode(): AnswerNavigationMode {
-  try {
-    const v = localStorage.getItem(ANSWER_NAVIGATION_MODE_KEY)
-    if (v === 'answer' || v === 'check') return v
-  } catch {}
-  return 'answer'
-}
-
-function saveAnswerNavigationMode(mode: AnswerNavigationMode): void {
-  try {
-    localStorage.setItem(ANSWER_NAVIGATION_MODE_KEY, mode)
-  } catch {}
-}
-
-// ─── Mobile Question Navigation Preference ───────────────────────────────────
-
-const MOBILE_QUESTION_NAV_KEY = 'iface_mobile_question_nav_enabled'
-
-function loadMobileQuestionNavEnabled(): boolean {
-  try {
-    return localStorage.getItem(MOBILE_QUESTION_NAV_KEY) === '1'
-  } catch {
-    return false
-  }
-}
-
-function saveMobileQuestionNavEnabled(enabled: boolean): void {
-  try {
-    localStorage.setItem(MOBILE_QUESTION_NAV_KEY, enabled ? '1' : '0')
-  } catch {}
-}
-
-// ─── AI FAB Preference ───────────────────────────────────────────────────────
-
-const AI_FAB_VISIBLE_KEY = 'iface_ai_fab_visible'
-
-function loadAiFabVisible(): boolean {
-  try {
-    const stored = localStorage.getItem(AI_FAB_VISIBLE_KEY)
-    if (stored === '1') return true
-    if (stored === '0') return false
-  } catch {}
-  return true
-}
-
-function saveAiFabVisible(visible: boolean): void {
-  try {
-    localStorage.setItem(AI_FAB_VISIBLE_KEY, visible ? '1' : '0')
-  } catch {}
-}
-
-// ─── Hidden Categories ────────────────────────────────────────────────────────
-
-const HIDDEN_CATEGORIES_KEY = 'iface_hidden_categories'
-
-function loadHiddenCategories(): Set<string> {
-  try {
-    const raw = localStorage.getItem(HIDDEN_CATEGORIES_KEY)
-    if (raw) {
-      const arr = JSON.parse(raw)
-      if (Array.isArray(arr)) return new Set<string>(arr)
-    }
-  } catch {}
-  return new Set<string>()
-}
-
-function saveHiddenCategories(s: Set<string>): void {
-  try {
-    localStorage.setItem(HIDDEN_CATEGORIES_KEY, JSON.stringify([...s]))
-  } catch {}
-}
-
-import { clearStudyRecords, deleteStudyRecord as apiDeleteStudyRecord, getStudyRecords, putStudyRecord as apiPutStudyRecord } from '@/api'
-import type { StudyRecord, StudyRecordMap, StudyStatus } from '@/types'
-
-// ─── Theme ────────────────────────────────────────────────────────────────────
-
-const THEME_KEY = 'iface_theme'
-
-function loadTheme(): 'light' | 'dark' {
-  try {
-    const stored = localStorage.getItem(THEME_KEY)
-    if (stored === 'light' || stored === 'dark') return stored
-    return window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light'
-  } catch {
-    return 'light'
-  }
-}
-
-function saveTheme(theme: 'light' | 'dark'): void {
-  try {
-    localStorage.setItem(THEME_KEY, theme)
-  } catch {}
-}
-
-function applyThemeToDom(theme: 'light' | 'dark'): void {
-  if (theme === 'dark') {
-    document.documentElement.classList.add('dark')
-  } else {
-    document.documentElement.classList.remove('dark')
-  }
-}
-
-// ─── State ────────────────────────────────────────────────────────────────────
-
-interface StoreState {
-  records: StudyRecordMap
-  theme: 'light' | 'dark'
-  studyMode: StudyMode
-  answerNavigationMode: AnswerNavigationMode
-  mobileQuestionNavEnabled: boolean
-  aiFabVisible: boolean
-  streak: StreakData
-  dailyGoal: number
-  hiddenCategories: Set<string>
-  initialized: boolean
-}
-
-type Action =
-  | {
-      type: 'INIT'
-      records: StudyRecordMap
-      theme: 'light' | 'dark'
-      studyMode: StudyMode
-      answerNavigationMode: AnswerNavigationMode
-      mobileQuestionNavEnabled: boolean
-      aiFabVisible: boolean
-      streak: StreakData
-      dailyGoal: number
-    }
-  | { type: 'SET_RECORD'; record: StudyRecord }
-  | { type: 'DELETE_RECORD'; questionId: string }
-  | { type: 'RESET_RECORDS' }
-  | { type: 'SET_THEME'; theme: 'light' | 'dark' }
-  | { type: 'SET_STUDY_MODE'; studyMode: StudyMode }
-  | { type: 'SET_ANSWER_NAVIGATION_MODE'; answerNavigationMode: AnswerNavigationMode }
-  | { type: 'SET_MOBILE_QUESTION_NAV_ENABLED'; mobileQuestionNavEnabled: boolean }
-  | { type: 'SET_AI_FAB_VISIBLE'; aiFabVisible: boolean }
-  | { type: 'SET_DAILY_GOAL'; dailyGoal: number }
-  | { type: 'INCREMENT_STREAK' }
-  | { type: 'RESET_STREAK' }
-  | { type: 'SET_HIDDEN_CATEGORIES'; hiddenCategories: string[] }
-
-function reducer(state: StoreState, action: Action): StoreState {
-  switch (action.type) {
-    case 'INIT':
-      return {
-        ...state,
-        records: action.records,
-        theme: action.theme,
-        studyMode: action.studyMode,
-        answerNavigationMode: action.answerNavigationMode,
-        mobileQuestionNavEnabled: action.mobileQuestionNavEnabled,
-        aiFabVisible: action.aiFabVisible,
-        streak: action.streak,
-        dailyGoal: action.dailyGoal,
-        initialized: true,
-      }
-    case 'SET_HIDDEN_CATEGORIES':
-      return { ...state, hiddenCategories: new Set(action.hiddenCategories) }
-    case 'SET_RECORD':
-      return {
-        ...state,
-        records: {
-          ...state.records,
-          [action.record.questionId]: action.record,
-        },
-      }
-    case 'DELETE_RECORD': {
-      const next = { ...state.records }
-      delete next[action.questionId]
-      return { ...state, records: next }
-    }
-    case 'RESET_RECORDS':
-      return { ...state, records: {} }
-    case 'SET_THEME':
-      return { ...state, theme: action.theme }
-    case 'SET_STUDY_MODE':
-      return { ...state, studyMode: action.studyMode }
-    case 'SET_ANSWER_NAVIGATION_MODE':
-      return { ...state, answerNavigationMode: action.answerNavigationMode }
-    case 'SET_MOBILE_QUESTION_NAV_ENABLED':
-      return { ...state, mobileQuestionNavEnabled: action.mobileQuestionNavEnabled }
-    case 'SET_AI_FAB_VISIBLE':
-      return { ...state, aiFabVisible: action.aiFabVisible }
-    case 'INCREMENT_STREAK': {
-      const today = todayStr()
-      const prev = state.streak
-      const newStreak: StreakData = {
-        currentStreak: prev.lastActivityDate === today ? prev.currentStreak + 1 : 1,
-        bestStreak: Math.max(
-          prev.bestStreak,
-          prev.lastActivityDate === today ? prev.currentStreak + 1 : 1,
-        ),
-        todayCount: prev.lastActivityDate === today ? prev.todayCount + 1 : 1,
-        lastActivityDate: today,
-      }
-      saveStreak(newStreak)
-      return { ...state, streak: newStreak }
-    }
-    case 'RESET_STREAK': {
-      const reset: StreakData = {
-        currentStreak: 0,
-        bestStreak: state.streak.bestStreak,
-        todayCount: 0,
-        lastActivityDate: todayStr(),
-      }
-      saveStreak(reset)
-      return { ...state, streak: reset }
-    }
-    case 'SET_DAILY_GOAL':
-      saveDailyGoal(action.dailyGoal)
-      return { ...state, dailyGoal: action.dailyGoal }
-    default:
-      return state
-  }
-}
-
-// ─── Singleton broadcast channel (cross-tab sync) ────────────────────────────
-
-let channel: BroadcastChannel | null = null
-try {
-  channel = new BroadcastChannel('iface_store')
-} catch {
-  // BroadcastChannel not supported (e.g. Safari < 15.4)
-}
-
-// ─── Global listener registry (multiple hook instances on same page) ──────────
-
-const _listeners = new Set<(action: Action) => void>()
-
-function broadcast(action: Action) {
-  for (const fn of _listeners) fn(action)
-  try {
-    channel?.postMessage(action)
-  } catch {}
-}
-
-// ─── Session Review Guard (module-level, shared across all hook instances) ────
-// Tracks which questionIds have already had reviewCount incremented in the
-// current browser session visit. Cleared per question when navigating away.
-
-const _sessionReviewed = new Set<string>()
-
-/** Call this when leaving a question page to reset its session review guard. */
-export function clearSessionReview(questionId: string) {
-  _sessionReviewed.delete(questionId)
-}
-
-// ─── Hook ─────────────────────────────────────────────────────────────────────
+const sessionReviewed = new Set<string>()
 
 export function useStudyStore() {
-  const [state, dispatch] = useReducer(reducer, {
-    records: {},
-    theme: loadTheme(),
-    studyMode: loadStudyMode(),
-    answerNavigationMode: loadAnswerNavigationMode(),
-    mobileQuestionNavEnabled: loadMobileQuestionNavEnabled(),
-    aiFabVisible: loadAiFabVisible(),
-    streak: loadStreak(),
-    dailyGoal: loadDailyGoal(),
-    hiddenCategories: loadHiddenCategories(),
-    initialized: false,
-  })
+  const dispatch = useAppDispatch()
+  const state = useAppSelector((s) => s.study)
 
-  // Keep a stable ref so callbacks don't go stale
-  const stateRef = useRef(state)
-  stateRef.current = state
+  useEffect(() => { if (!state.initialized) dispatch(initStudy()) }, [dispatch, state.initialized])
 
-  // ── Initialize from IndexedDB ──
-  useEffect(() => {
-    const theme = loadTheme()
-    applyThemeToDom(theme)
+  const hiddenCategories = useMemo(() => new Set(state.hiddenCategories), [state.hiddenCategories])
 
-    const studyMode = loadStudyMode()
-    const answerNavigationMode = loadAnswerNavigationMode()
-    const mobileQuestionNavEnabled = loadMobileQuestionNavEnabled()
-    const aiFabVisible = loadAiFabVisible()
-    const streak = loadStreak()
-    const dailyGoal = loadDailyGoal()
-    getStudyRecords().then((records) => {
-      const map: StudyRecordMap = {}
-      for (const r of records) {
-        map[r.question_id] = { questionId: r.question_id, status: r.status, lastUpdated: r.last_updated, reviewCount: r.review_count }
-      }
-      dispatch({
-        type: 'INIT',
-        records: map,
-        theme,
-        studyMode,
-        answerNavigationMode,
-        mobileQuestionNavEnabled,
-        aiFabVisible,
-        streak,
-        dailyGoal,
-      })
-    })
-  }, [])
+  const getStatus = useCallback((id: string): StudyStatus => state.records[id]?.status ?? 'unlearned', [state.records])
+  const getRecord = useCallback((id: string): StudyRecord | undefined => state.records[id], [state.records])
 
-  // ── Register as a global listener (sync across hook instances on same page) ──
-  useEffect(() => {
-    const listener = (action: Action) => dispatch(action)
-    _listeners.add(listener)
-    return () => {
-      _listeners.delete(listener)
-    }
-  }, [])
-
-  // ── Cross-tab sync via BroadcastChannel ──
-  useEffect(() => {
-    if (!channel) return
-    const handler = (e: MessageEvent<Action>) => dispatch(e.data)
-    channel.addEventListener('message', handler)
-    return () => channel?.removeEventListener('message', handler)
-  }, [])
-
-  // ─── Actions ────────────────────────────────────────────────────────────────
-
-  const setStatus = useCallback(async (questionId: string, status: StudyStatus) => {
-    const existing = stateRef.current.records[questionId]
-
-    // Only increment reviewCount the first time this question is marked
-    // in the current page session (prevents multi-press inflation).
-    const alreadyCountedThisSession = _sessionReviewed.has(questionId)
-    let newReviewCount: number
-    if (status === 'review') {
-      if (!alreadyCountedThisSession) {
-        newReviewCount = (existing?.reviewCount ?? 0) + 1
-        _sessionReviewed.add(questionId)
-      } else {
-        newReviewCount = existing?.reviewCount ?? 1
-      }
-    } else {
-      // mastered / unlearned — never increment
-      newReviewCount = existing?.reviewCount ?? 0
-    }
-
-    const record: StudyRecord = {
-      questionId,
-      status,
-      lastUpdated: Date.now(),
-      reviewCount: newReviewCount,
-    }
-    // Optimistic update first
-    const action: Action = { type: 'SET_RECORD', record }
-    broadcast(action)
-    // Persist
-    await apiPutStudyRecord(record.questionId, { status: record.status, reviewCount: record.reviewCount, lastUpdated: record.lastUpdated })
-  }, [])
-
-  const clearRecord = useCallback(async (questionId: string) => {
-    const action: Action = { type: 'DELETE_RECORD', questionId }
-    broadcast(action)
-    await apiDeleteStudyRecord(questionId)
-  }, [])
-
-  const resetAll = useCallback(async () => {
-    const action: Action = { type: 'RESET_RECORDS' }
-    broadcast(action)
-    await clearStudyRecords()
-  }, [])
-
-  const setTheme = useCallback((theme: 'light' | 'dark') => {
-    saveTheme(theme)
-    applyThemeToDom(theme)
-    const action: Action = { type: 'SET_THEME', theme }
-    broadcast(action)
-  }, [])
-
-  const setStudyMode = useCallback((mode: StudyMode) => {
-    saveStudyMode(mode)
-    const action: Action = { type: 'SET_STUDY_MODE', studyMode: mode }
-    broadcast(action)
-  }, [])
-
-  const setAnswerNavigationMode = useCallback((mode: AnswerNavigationMode) => {
-    saveAnswerNavigationMode(mode)
-    const action: Action = { type: 'SET_ANSWER_NAVIGATION_MODE', answerNavigationMode: mode }
-    broadcast(action)
-  }, [])
-
-  const setMobileQuestionNavEnabled = useCallback((enabled: boolean) => {
-    saveMobileQuestionNavEnabled(enabled)
-    const action: Action = {
-      type: 'SET_MOBILE_QUESTION_NAV_ENABLED',
-      mobileQuestionNavEnabled: enabled,
-    }
-    broadcast(action)
-  }, [])
-
-  const setAiFabVisible = useCallback((visible: boolean) => {
-    saveAiFabVisible(visible)
-    const action: Action = { type: 'SET_AI_FAB_VISIBLE', aiFabVisible: visible }
-    broadcast(action)
-  }, [])
-
-  const incrementStreak = useCallback(() => {
-    const action: Action = { type: 'INCREMENT_STREAK' }
-    broadcast(action)
-  }, [])
-
-  const resetStreak = useCallback(() => {
-    const action: Action = { type: 'RESET_STREAK' }
-    broadcast(action)
-  }, [])
-
-  const setDailyGoal = useCallback((n: number) => {
-    const clamped = Math.max(DAILY_GOAL_MIN, Math.min(DAILY_GOAL_MAX, Math.round(n)))
-    const action: Action = { type: 'SET_DAILY_GOAL', dailyGoal: clamped }
-    broadcast(action)
-  }, [])
-
-  const setHiddenCategories = useCallback((categoryNames: string[]) => {
-    const next = new Set(categoryNames)
-    saveHiddenCategories(next)
-    const action: Action = { type: 'SET_HIDDEN_CATEGORIES', hiddenCategories: [...next] }
-    broadcast(action)
-  }, [])
-
-  const setCategoryVisibility = useCallback(
-    (categoryName: string, visible: boolean) => {
-      const next = new Set(stateRef.current.hiddenCategories)
-      if (visible) {
-        next.delete(categoryName)
-      } else {
-        next.add(categoryName)
-      }
-      setHiddenCategories([...next])
-    },
-    [setHiddenCategories],
-  )
-
-  const toggleCategoryVisibility = useCallback(
-    (categoryName: string) => {
-      setCategoryVisibility(categoryName, stateRef.current.hiddenCategories.has(categoryName))
-    },
-    [setCategoryVisibility],
-  )
-
-  const isCategoryHidden = useCallback(
-    (categoryName: string): boolean => stateRef.current.hiddenCategories.has(categoryName),
-    [],
-  )
-
-  const toggleTheme = useCallback(() => {
-    const next = stateRef.current.theme === 'light' ? 'dark' : 'light'
-    saveTheme(next)
-    applyThemeToDom(next)
-    const action: Action = { type: 'SET_THEME', theme: next }
-    broadcast(action)
-  }, [])
-
-  // ─── Queries (pure, derived from state) ─────────────────────────────────────
-
-  const getStatus = useCallback(
-    (questionId: string): StudyStatus =>
-      stateRef.current.records[questionId]?.status ?? 'unlearned',
-    [],
-  )
-
-  const getRecord = useCallback(
-    (questionId: string): StudyRecord | undefined => stateRef.current.records[questionId],
-    [],
-  )
-
-  // ── Derived counts computed directly from reactive state (not stateRef) ──
-  // These are plain values, not callbacks, so components can use them directly
-  // as useMemo / useEffect dependencies and re-render when records change.
   const statusCounts = useMemo(() => {
-    const counts = { unlearned: 0, mastered: 0, review: 0 }
-    for (const r of Object.values(state.records)) {
-      counts[r.status]++
-    }
-    return counts
+    const c = { unlearned: 0, mastered: 0, review: 0 }
+    for (const r of Object.values(state.records)) c[r.status]++
+    return c
   }, [state.records])
 
-  // Keep the callback form for compatibility (e.g. QuestionDetail, WeakPoints)
-  const getStatusCounts = useCallback((questionIds?: string[]) => {
-    if (!questionIds) {
-      // Re-derive from current state so callers that call this inside a
-      // useEffect/useMemo also get a fresh value.
-      const counts = { unlearned: 0, mastered: 0, review: 0 }
-      for (const r of Object.values(stateRef.current.records)) {
-        counts[r.status]++
-      }
-      return counts
-    }
-    const counts = { unlearned: 0, mastered: 0, review: 0 }
-    for (const id of questionIds) {
-      const status = stateRef.current.records[id]?.status ?? 'unlearned'
-      counts[status]++
-    }
-    return counts
-  }, [])
+  const getStatusCounts = useCallback((ids?: string[]) => {
+    if (!ids) return statusCounts
+    const c = { unlearned: 0, mastered: 0, review: 0 }
+    for (const id of ids) { c[state.records[id]?.status ?? 'unlearned']++ }
+    return c
+  }, [state.records, statusCounts])
 
-  const getWeakQuestions = useCallback((): StudyRecord[] => {
-    return Object.values(stateRef.current.records)
-      .filter((r) => r.status === 'review')
-      .sort((a, b) => a.lastUpdated - b.lastUpdated)
-  }, [])
+  const getWeakQuestions = useCallback((): StudyRecord[] =>
+    Object.values(state.records).filter((r) => r.status === 'review').sort((a, b) => a.lastUpdated - b.lastUpdated),
+  [state.records])
 
-  const getEstimatedDays = useCallback(
-    (totalQuestions: number, dailyCount = DAILY_GOAL_DEFAULT): number => {
-      const mastered = Object.values(stateRef.current.records).filter(
-        (r) => r.status === 'mastered',
-      ).length
-      const remaining = totalQuestions - mastered
-      return remaining <= 0 ? 0 : Math.ceil(remaining / dailyCount)
-    },
-    [],
-  )
+  const getEstimatedDays = useCallback((total: number, daily = 10): number => {
+    const mastered = Object.values(state.records).filter((r) => r.status === 'mastered').length
+    const remaining = total - mastered
+    return remaining <= 0 ? 0 : Math.ceil(remaining / daily)
+  }, [state.records])
+
+  const setStatus = useCallback(async (id: string, status: StudyStatus) => {
+    const existing = state.records[id]
+    const alreadyCounted = sessionReviewed.has(id)
+    let reviewCount = existing?.reviewCount ?? 0
+    if (status === 'review' && !alreadyCounted) { reviewCount++; sessionReviewed.add(id) }
+    await dispatch(setStatusThunk({ questionId: id, status, reviewCount })).unwrap()
+  }, [dispatch, state.records])
 
   return {
-    // ── Data ─────────────────────────────────────────
-    records: state.records,               // remote (API: getStudyRecords / putStudyRecord)
-    theme: state.theme,                   // local (localStorage: iface_theme)
-    studyMode: state.studyMode,           // local (localStorage: iface_study_mode)
-    answerNavigationMode: state.answerNavigationMode, // local (localStorage)
-    mobileQuestionNavEnabled: state.mobileQuestionNavEnabled, // local (localStorage)
-    aiFabVisible: state.aiFabVisible,     // local (localStorage: iface_ai_fab_visible)
-    streak: state.streak,                 // local (localStorage: iface_streak)
-    dailyGoal: state.dailyGoal,           // local (localStorage: iface_daily_goal)
-    hiddenCategories: state.hiddenCategories, // local (localStorage: iface_hidden_categories)
-    initialized: state.initialized,       // local (useReducer state)
-
-    // ── Derived ──────────────────────────────────────
-    statusCounts,                         // derived from records
-
-    // ── Actions ──────────────────────────────────────
-    setStatus,                            // remote → API putStudyRecord
-    clearRecord,                          // remote → API deleteStudyRecord
-    resetAll,                             // remote → API clearStudyRecords
-    setTheme,                             // local
-    toggleTheme,                          // local
-    setStudyMode,                         // local
-    setAnswerNavigationMode,              // local
-    setMobileQuestionNavEnabled,          // local
-    setAiFabVisible,                      // local
-    setDailyGoal,                         // local
-    setHiddenCategories,                  // local
-    setCategoryVisibility,                // local
-    incrementStreak,                      // local
-    resetStreak,                          // local
-    toggleCategoryVisibility,             // local
-
-    // ── Queries ──────────────────────────────────────
-    getStatus,                            // derived from records
-    getRecord,                            // derived from records
-    getStatusCounts,                      // derived from records
-    getWeakQuestions,                     // derived from records
-    getEstimatedDays,                     // derived from records
-    isCategoryHidden,                     // derived from hiddenCategories
+    records: state.records,
+    theme: state.theme,
+    studyMode: state.studyMode,
+    answerNavigationMode: state.answerNavigationMode,
+    mobileQuestionNavEnabled: state.mobileQuestionNavEnabled,
+    aiFabVisible: state.aiFabVisible,
+    streak: state.streak,
+    dailyGoal: state.dailyGoal,
+    hiddenCategories,
+    initialized: state.initialized,
+    statusCounts,
+    setStatus,
+    clearRecord: (id: string) => { dispatch(deleteRecord(id)) },
+    resetAll: () => { dispatch(resetAllRecords()) },
+    setTheme: (t: 'light' | 'dark') => dispatch(setTheme(t)),
+    toggleTheme: () => dispatch(toggleTheme()),
+    setStudyMode: (m: StudyMode) => dispatch(setStudyMode(m)),
+    setAnswerNavigationMode: (m: AnswerNavigationMode) => dispatch(setAnswerNavigationMode(m)),
+    setMobileQuestionNavEnabled: (v: boolean) => dispatch(setMobileQuestionNavEnabled(v)),
+    setAiFabVisible: (v: boolean) => dispatch(setAiFabVisible(v)),
+    setDailyGoal: (n: number) => dispatch(setDailyGoal(n)),
+    setHiddenCategories: (cats: string[]) => dispatch(setHiddenCategories(cats)),
+    toggleCategoryVisibility: (key: string) => dispatch(toggleCategoryVisibility(key)),
+    isCategoryHidden: (name: string) => hiddenCategories.has(name),
+    incrementStreak: () => dispatch(incrementStreak()),
+    resetStreak: () => dispatch(resetStreak()),
+    getStatus,
+    getRecord,
+    getStatusCounts,
+    getWeakQuestions,
+    getEstimatedDays,
   }
 }

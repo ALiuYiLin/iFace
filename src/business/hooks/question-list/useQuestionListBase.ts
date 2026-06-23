@@ -14,7 +14,7 @@ export interface QuestionListBaseData {
   records: ReturnType<typeof useStudyStore>['records']
   getStatus: ReturnType<typeof useStudyStore>['getStatus']
   hiddenCategories: ReturnType<typeof useStudyStore>['hiddenCategories']
-  categoryMap: ReturnType<typeof useAppSelector>['questionList']['categoryMap']
+  categoryMap: import("@/api").CategoryMap
   questionFlags: QuestionFlag[]
   questionNotes: QuestionNote[]
 }
