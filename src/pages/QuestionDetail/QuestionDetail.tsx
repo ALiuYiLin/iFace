@@ -1,4 +1,3 @@
-import { useMemo } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
 import { SettingsDrawer } from '@/components/layout/SettingDrawer'
 import { Badge, Button, Kbd, Skeleton, Spinner } from '@/components/ui'
@@ -8,7 +7,7 @@ import {
 } from '@/components/icon'
 import { LearningCheckPanel } from '@/components/ui/LearningCheckPanel'
 import { MarkdownRenderer } from '@/components/ui/LazyMarkdownRenderer'
-import { DIFFICULTY_LABELS, DIFFICULTY_STYLES } from '@/types'
+import { DIFFICULTY_LABELS } from '@/types'
 import {
   StatusButton,
   SessionProgress,
@@ -71,25 +70,6 @@ export default function QuestionDetail() {
     currentStatus: derived.currentStatus,
   })
 
-  // ── Derived page values ──
-  const showMobileQuestionNav = base.mobileQuestionNavEnabled
-
-  const diffStyle = base.question ? DIFFICULTY_STYLES[base.question.difficulty] : { color: 'var(--text-2)', background: 'var(--surface-3)', borderColor: 'var(--border-subtle)' }
-  const answerHeading = ui.hasCustomAnswer
-    ? ui.showOriginalAnswer
-      ? '参考答案'
-      : '自定义答案'
-    : '参考答案'
-  const showAnswerContent = ui.answerPanelView === 'answer'
-  const answerContextQuestion = useMemo(
-    () => (base.question ? { ...base.question, answer: ui.displayedAnswerText } : null),
-    [base.question, ui.displayedAnswerText],
-  )
-  const canSaveAnswerOverride = ui.answerDraft.trim().length > 0 && ui.answerSaveStatus !== 'saving'
-  const showAnswerInputAbove = base.studyMode === 'answer-first'
-  const showAnswerInputInside = base.studyMode === 'answer-alongside'
-  const hideAnswerInput = base.studyMode === 'memory-only'
-
   // ── Loading ──
   if (base.loading) {
     return (
@@ -127,7 +107,7 @@ export default function QuestionDetail() {
   return (
     <>
       <div
-        className={ns('page-container', 'question-detail-page', 'pageContainer', showMobileQuestionNav && 'hasMobileNav')}
+        className={ns('page-container', 'question-detail-page', 'pageContainer', ui.showMobileQuestionNav && 'hasMobileNav')}
       >
         {/* Breadcrumb / Session progress */}
         <div className="animate-fade-in">
@@ -158,7 +138,7 @@ export default function QuestionDetail() {
           <div className={ns('metaRow')}>
             <span className={ns('moduleBadge')}>{base.question.module}</span>
             <Badge size="sm" variant="ghost" className={ns('diffBadge')}
-              style={{ color: diffStyle.color, background: diffStyle.background, borderColor: diffStyle.borderColor }}>
+              style={{ color: ui.diffStyle.color, background: ui.diffStyle.background, borderColor: ui.diffStyle.borderColor }}>
               {DIFFICULTY_LABELS[base.question.difficulty]}
             </Badge>
             {derived.currentStatus !== 'unlearned' && (
@@ -220,7 +200,7 @@ export default function QuestionDetail() {
         </div>
 
         {/* My Answer Input - above answer card */}
-        {showAnswerInputAbove && !hideAnswerInput && (
+        {ui.showAnswerInputAbove && !ui.hideAnswerInput && (
           <div className="animate-fade-in stagger-1">
             <MyAnswerInput
               key={`answer-above-${base.id ?? ''}`}
@@ -246,7 +226,7 @@ export default function QuestionDetail() {
                 {ui.hasLearningCheck ? (
                   <AnswerPanelTabs
                     activeView={ui.answerPanelView}
-                    answerLabel={answerHeading}
+                    answerLabel={ui.answerHeading}
                     onChange={(view) => {
                       if (view === 'check') {
                         ui.setAnswerEditMode(false)
@@ -256,7 +236,7 @@ export default function QuestionDetail() {
                     }}
                   />
                 ) : (
-                  <h2 className={ns('answerHeading')}>{answerHeading}</h2>
+                  <h2 className={ns('ui.answerHeading')}>{ui.answerHeading}</h2>
                 )}
                 {ui.hasCustomAnswer && !ui.answerEditMode && (
                   <AnswerOverrideHeaderMeta
@@ -304,7 +284,7 @@ export default function QuestionDetail() {
               <AnswerOverrideEditor
                 draft={ui.answerDraft}
                 saveStatus={ui.answerSaveStatus}
-                canSave={canSaveAnswerOverride}
+                canSave={ui.canSaveAnswerOverride}
                 onDraftChange={ui.setAnswerDraft}
                 onSave={ui.handleSaveAnswerOverride}
                 onCancel={ui.handleCancelAnswerEdit}
@@ -322,7 +302,7 @@ export default function QuestionDetail() {
               </section>
             )}
 
-            {showAnswerContent && ui.answerSelection && !ui.answerEditMode && !ui.answerOverrideLoading && (
+            {ui.showAnswerContent && ui.answerSelection && !ui.answerEditMode && !ui.answerOverrideLoading && (
               <AnswerAnnotationToolbar
                 toolbarRef={ui.answerAnnotationToolbarRef}
                 selection={ui.answerSelection}
@@ -338,7 +318,7 @@ export default function QuestionDetail() {
               />
             )}
 
-            {showAnswerContent && !ui.answerEditMode && !ui.answerOverrideLoading && (
+            {ui.showAnswerContent && !ui.answerEditMode && !ui.answerOverrideLoading && (
               <AnswerCommentMarkers
                 rootRef={ui.answerContentRef}
                 annotations={ui.visibleAnswerAnnotations}
@@ -395,7 +375,7 @@ export default function QuestionDetail() {
             </div>
 
             {/* My Answer Input - inside answer card */}
-            {showAnswerContent && showAnswerInputInside && !hideAnswerInput && (
+            {ui.showAnswerContent && ui.showAnswerInputInside && !ui.hideAnswerInput && (
               <MyAnswerInput
                 key={`answer-inside-${base.id ?? ''}`}
                 questionId={base.id ?? ''}
@@ -466,11 +446,11 @@ export default function QuestionDetail() {
       </div>
 
       {/* AI Drawer */}
-      {answerContextQuestion && (
+      {ui.answerContextQuestion && (
         <AIDrawer
           open={ui.aiDrawerOpen}
           onClose={() => ui.setAiDrawerOpen(false)}
-          question={answerContextQuestion}
+          question={ui.answerContextQuestion}
           answerVisible={ui.answerVisible}
           initialPrompt={ui.aiInitialPrompt}
           onInitialPromptConsumed={ui.handleAIInitialPromptConsumed}
@@ -496,7 +476,7 @@ export default function QuestionDetail() {
       )}
 
       {/* Mobile Question Nav */}
-      {showMobileQuestionNav && (
+      {ui.showMobileQuestionNav && (
         <MobileQuestionNav
           prevDisabled={!derived.prevId}
           nextDisabled={!derived.nextId}

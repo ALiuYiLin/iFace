@@ -15,6 +15,7 @@ import { loadLearningChecksForQuestion, type LearningCheckQuestion } from '@/lib
 import { createPracticeSessionPath } from '@/lib/practiceSession'
 import { clearSessionReview, useStudyStore } from '@/store/useStudyStore'
 import type { Question, QuestionAnswerAnnotation, QuestionAnswerOverride, StudyStatus } from '@/types'
+import { DIFFICULTY_STYLES } from '@/types'
 import type { AnswerAnnotationColor, AnswerSelectionDraft, AnswerOverrideSaveStatus, AnswerPanelView } from '@/business/components/question-detail'
 import {
   answerAnnotationRangesEqual,
@@ -172,7 +173,7 @@ export function useQuestionDetailUI(params: {
 }) {
   const navigate = useNavigate()
   const [searchParams, setSearchParams] = useSearchParams()
-  const { setStatus, streak, incrementStreak } = useStudyStore()
+  const { setStatus, streak, incrementStreak, mobileQuestionNavEnabled } = useStudyStore()
 
   // ── UI state ──
   const [answerVisible, setAnswerVisible] = useState(false)
@@ -241,6 +242,24 @@ export function useQuestionDetailUI(params: {
     params.answerNavigationMode === 'check'
       ? withLearningCheckSearch(params.sessionSearch)
       : params.sessionSearch
+
+  // ── Additional UI derivations ──
+  const showMobileQuestionNav = mobileQuestionNavEnabled
+  const diffStyle = params.question
+    ? DIFFICULTY_STYLES[params.question.difficulty]
+    : { color: 'var(--text-2)', background: 'var(--surface-3)', borderColor: 'var(--border-subtle)' }
+  const answerHeading = hasCustomAnswer
+    ? showOriginalAnswer ? '参考答案' : '自定义答案'
+    : '参考答案'
+  const showAnswerContent = answerPanelView === 'answer'
+  const answerContextQuestion = useMemo(
+    () => (params.question ? { ...params.question, answer: displayedAnswerText } : null),
+    [params.question, displayedAnswerText],
+  )
+  const canSaveAnswerOverride = answerDraft.trim().length > 0 && answerSaveStatus !== 'saving'
+  const showAnswerInputAbove = params.studyMode === 'answer-first'
+  const showAnswerInputInside = params.studyMode === 'answer-alongside'
+  const hideAnswerInput = params.studyMode === 'memory-only'
 
   // ── Effects ──
   useEffect(() => {
@@ -779,5 +798,8 @@ export function useQuestionDetailUI(params: {
 
     // Derived
     showSessionSummary, showRelatedPractice,
+    showMobileQuestionNav, diffStyle, answerHeading,
+    showAnswerContent, answerContextQuestion, canSaveAnswerOverride,
+    showAnswerInputAbove, showAnswerInputInside, hideAnswerInput,
   }
 }

@@ -15,25 +15,36 @@ import {
   setQuestionStarred as apiSetStarred,
 } from '@/api'
 
-import type {
-  QuestionAnswerAnnotation as ApiAnnotation,
-  QuestionAnswerOverride as ApiOverride,
-} from './types'
+import type { QuestionAnswerAnnotation, AnswerAnnotationColor, AnswerAnnotationKind } from '@/types'
 
 // ─── Question Answer Annotations ───────────────────
 
-export async function getQuestionAnswerAnnotations(questionId: string) {
+export async function getQuestionAnswerAnnotations(questionId: string): Promise<QuestionAnswerAnnotation[]> {
   const { getAnnotationsByQuestion } = await import('@/api/answerAnnotations')
-  return getAnnotationsByQuestion(questionId)
+  const res: any[] = await getAnnotationsByQuestion(questionId) as any
+  return res.map((a) => ({
+    id: a.id as string,
+    questionId: a.question_id as string,
+    answerHash: a.answer_hash as string,
+    kind: a.kind as AnswerAnnotationKind,
+    color: a.color as AnswerAnnotationColor,
+    highlightColor: a.highlight_color as AnswerAnnotationColor | null | undefined,
+    start: a.start_pos as number,
+    end: a.end_pos as number,
+    selectedText: a.selected_text as string,
+    note: a.note as string,
+    createdAt: a.created_at as number,
+    updatedAt: a.updated_at as number,
+  }))
 }
 
 export async function putQuestionAnswerAnnotation(annotation: {
   id: string
   questionId: string
   answerHash: string
-  kind: string
-  color: string
-  highlightColor?: string | null
+  kind: AnswerAnnotationKind
+  color: AnswerAnnotationColor
+  highlightColor?: AnswerAnnotationColor | null
   start: number
   end: number
   selectedText: string
