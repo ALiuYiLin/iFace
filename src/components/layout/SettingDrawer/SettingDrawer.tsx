@@ -1,4 +1,4 @@
-import { useState, type ReactNode } from 'react'
+import { type ReactNode } from 'react'
 import { useNameSpace } from '@/utils'
 import { invalidateQuestionsCache } from '@/hooks/useQuestions'
 import { pushToGist, pullFromGist, deleteBackupGist } from '@/lib/gistSync'
@@ -24,74 +24,20 @@ import {
 } from '@/store/useStudyStore'
 import {
   IconAI, IconData, IconGitHub, IconClose, IconCheck,
-  IconDownload, IconUpload, IconTrash, IconEye, IconEyeOff,
+  IconDownload, IconUpload, IconTrash,
   IconBook, IconSync, IconCog, IconMonitor, IconVisible,
   IconChevronRight, IconSpinner, IconCloseSmall,
 } from '@/components/icon'
 import { useSettingDrawerBase, useSettingDrawerDerived } from './hooks'
+import { SectionHeader } from './SectionHeader'
+import { Toggle } from './Toggle'
+import { Field } from './Field'
+import { ApiKeyInput } from './ApiKeyInput'
+import { Toast } from './Toast'
 import type { ToastState } from './hooks/useSettingDrawerBase'
 import styles from './SettingDrawer.module.css'
 
 const ns = useNameSpace(styles)
-
-// ─── Small UI Components ────────────────────────────────────────────────────
-
-function SectionHeader({ icon, title }: { icon: ReactNode; title: string }) {
-  return (
-    <div className={ns('sectionHeader')}>
-      <div className={ns('sectionHeaderIcon')}>{icon}</div>
-      <span className={ns('sectionHeaderTitle')}>{title}</span>
-    </div>
-  )
-}
-
-function Toggle({ checked, onChange, label, description }: {
-  checked: boolean; onChange: (v: boolean) => void; label: string; description?: string
-}) {
-  return (
-    <button type="button" className={ns('toggle')} data-checked={checked} onClick={() => onChange(!checked)}>
-      <div className={ns('toggleBody')}>
-        <p className={ns('toggleLabel')}>{label}</p>
-        {description && <p className={ns('toggleDesc')}>{description}</p>}
-      </div>
-      <div className={ns('toggleTrack')}>
-        <div className={ns('toggleKnob')} />
-      </div>
-    </button>
-  )
-}
-
-function Field({ label, children, hint }: { label: string; children: ReactNode; hint?: string }) {
-  return (
-    <div className={ns('field')}>
-      <div className={ns('fieldLabel')}>{label}</div>
-      {children}
-      {hint && <p className={ns('fieldHint')}>{hint}</p>}
-    </div>
-  )
-}
-
-function ApiKeyInput({ value, onChange, placeholder }: {
-  value: string; onChange: (v: string) => void; placeholder?: string
-}) {
-  const [show, setShow] = useState(false)
-  return (
-    <div className={ns('apiKeyWrap')}>
-      <input type={show ? 'text' : 'password'} value={value}
-        onChange={(e) => onChange(e.target.value)} placeholder={placeholder ?? 'sk-...'}
-        className={`input-base ${ns('apiKeyInput')}`}
-        autoComplete="off" spellCheck={false}
-        data-mono={value && !show ? 'true' : undefined} />
-      <button type="button" onClick={() => setShow((v) => !v)} tabIndex={-1} className={ns('apiKeyToggle')}>
-        {show ? <IconEyeOff /> : <IconEye />}
-      </button>
-    </div>
-  )
-}
-
-function Toast({ message, type }: ToastState) {
-  return <div className={ns('toast')} data-type={type} style={{ background: `var(--${type === 'success' ? 'success' : type === 'error' ? 'danger' : 'primary'})`, color: 'white' }}>{message}</div>
-}
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
 
