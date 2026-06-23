@@ -1,6 +1,6 @@
 import { useMemo } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
-import { SettingsDrawer } from '@/components/layout/SettingsDrawer'
+import { SettingsDrawer } from '@/components/layout/SettingDrawer'
 import { Badge, Button, Kbd, Skeleton, Spinner } from '@/components/ui'
 import { LearningCheckPanel } from '@/components/ui/LearningCheckPanel'
 import { MarkdownRenderer } from '@/components/ui/LazyMarkdownRenderer'

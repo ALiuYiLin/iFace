@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'react'
 import { Link, useLocation } from 'react-router-dom'
-import { SettingsDrawer } from '@/components/layout/SettingsDrawer'
+import { SettingsDrawer } from '@/components/layout/SettingDrawer'
 import { preloadPath } from '@/lib/routePreload'
 import { useStudyStore } from '@/store/useStudyStore'
 

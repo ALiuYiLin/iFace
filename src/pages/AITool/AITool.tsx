@@ -1,5 +1,5 @@
 import { Link } from 'react-router-dom'
-import { SettingsDrawer } from '@/components/layout/SettingsDrawer'
+import { SettingsDrawer } from '@/components/layout/SettingDrawer'
 import { Badge, Button, Spinner } from '@/components/ui'
 import { MarkdownRenderer } from '@/components/ui/LazyMarkdownRenderer'
 import { useNameSpace } from '@/utils'

@@ -1,4 +1,4 @@
-import { SettingsDrawer } from '@/components/layout/SettingsDrawer'
+import { SettingsDrawer } from '@/components/layout/SettingDrawer'
 import { Badge, Button, Spinner } from '@/components/ui'
 import { MarkdownRenderer } from '@/components/ui/LazyMarkdownRenderer'
 import { TextArea } from '@/business/components/jd-match'
