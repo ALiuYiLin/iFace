@@ -1,0 +1,32 @@
+.wrapper {
+  padding-top: calc(var(--navbar-h) + 56px);
+}
+.card {
+  max-width: 520px;
+  margin: 0 auto;
+  padding: 24px;
+  text-align: center;
+}
+.title {
+  font-size: 18px;
+  font-weight: 700;
+  color: var(--text);
+  margin-bottom: 8px;
+}
+.desc {
+  font-size: 13px;
+  color: var(--text-3);
+  line-height: 1.7;
+  margin-bottom: 18px;
+}
+.reloadBtn {
+  height: 36px;
+  padding: 0 16px;
+  border-radius: 8px;
+  border: none;
+  background: var(--primary);
+  color: white;
+  font-size: 14px;
+  font-weight: 600;
+  cursor: pointer;
+}

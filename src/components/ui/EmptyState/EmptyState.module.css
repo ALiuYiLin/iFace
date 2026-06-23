@@ -1,0 +1,30 @@
+.wrapper {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 56px 16px;
+  text-align: center;
+}
+.iconBox {
+  width: 56px; height: 56px;
+  border-radius: 16px;
+  background: var(--surface-3);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  margin-bottom: 16px;
+}
+.title {
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--text);
+  margin-bottom: 6px;
+}
+.desc {
+  font-size: 13px;
+  color: var(--text-3);
+  max-width: 280px;
+  line-height: 1.6;
+}
+.action { margin-top: 20px; }

@@ -1,0 +1,16 @@
+.wrapper {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+.track { fill: none; stroke: var(--border); }
+.mastered { fill: none; stroke: #10b981; stroke-linecap: round; }
+.review { fill: none; stroke: #f59e0b; stroke-linecap: round; }
+.label {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
