@@ -4,7 +4,8 @@ import { useStudyStore } from '@/store/useStudyStore'
 import { useAppDispatch, useAppSelector } from '@/store/hooks'
 import { fetchQuestionList } from '@/store/pages/questionListSlice'
 import { getQuestionFlags, getQuestionNotes } from '@/api'
-import type { QuestionFlag, QuestionNote, Question } from '@/api'
+import type { Question } from '@/api'
+import type { QuestionFlag, QuestionNote } from '@/types'
 
 export interface QuestionListBaseData {
   navigate: ReturnType<typeof useNavigate>
@@ -25,8 +26,8 @@ export function useQuestionListBase(): QuestionListBaseData {
   const { records, getStatus, hiddenCategories } = useStudyStore()
   const { allQuestions, categoryMap, loading } = useAppSelector((s) => s.questionList)
 
-  const [questionFlags, setQuestionFlags] = useState<QuestionFlag[]>([])
-  const [questionNotes, setQuestionNotes] = useState<QuestionNote[]>([])
+  const [questionFlags, setQuestionFlags] = useState<import("@/types").QuestionFlag[]>([])
+  const [questionNotes, setQuestionNotes] = useState<import("@/types").QuestionNote[]>([])
 
   useEffect(() => {
     dispatch(fetchQuestionList())
@@ -40,8 +41,8 @@ export function useQuestionListBase(): QuestionListBaseData {
         getQuestionFlags(),
       ])
       if (cancelled) return
-      setQuestionNotes(notesResult.status === 'fulfilled' ? notesResult.value : [])
-      setQuestionFlags(flagsResult.status === 'fulfilled' ? flagsResult.value : [])
+      setQuestionNotes(notesResult.status === 'fulfilled' ? notesResult.value.map((n: any) => ({ questionId: n.question_id, content: n.content, createdAt: n.created_at, updatedAt: n.updated_at })) : [])
+      setQuestionFlags(flagsResult.status === 'fulfilled' ? flagsResult.value.map((f: any) => ({ questionId: f.question_id, starred: !!f.starred, createdAt: f.created_at, updatedAt: f.updated_at })) : [])
     }
     void loadMeta()
     window.addEventListener('focus', loadMeta)
