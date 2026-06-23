@@ -1,9 +1,10 @@
 import { useEffect, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { usePromise } from '@/hooks/usePromise'
 import { useStudyStore } from '@/store/useStudyStore'
-import { getCategories, getQuestionFlags, getQuestionNotes, getQuestions } from '@/api'
-import type { CategoryMap, QuestionFlag, QuestionNote, Question } from '@/api'
+import { useAppDispatch, useAppSelector } from '@/store/hooks'
+import { fetchQuestionList } from '@/store/pages/questionListSlice'
+import { getQuestionFlags, getQuestionNotes } from '@/api'
+import type { QuestionFlag, QuestionNote, Question } from '@/api'
 
 export interface QuestionListBaseData {
   navigate: ReturnType<typeof useNavigate>
@@ -13,52 +14,38 @@ export interface QuestionListBaseData {
   records: ReturnType<typeof useStudyStore>['records']
   getStatus: ReturnType<typeof useStudyStore>['getStatus']
   hiddenCategories: ReturnType<typeof useStudyStore>['hiddenCategories']
-  categoryMap: CategoryMap
+  categoryMap: ReturnType<typeof useAppSelector>['questionList']['categoryMap']
   questionFlags: QuestionFlag[]
   questionNotes: QuestionNote[]
 }
 
 export function useQuestionListBase(): QuestionListBaseData {
   const navigate = useNavigate()
+  const dispatch = useAppDispatch()
   const { records, getStatus, hiddenCategories } = useStudyStore()
+  const { allQuestions, categoryMap, loading } = useAppSelector((s) => s.questionList)
 
-  const [allQuestions, setAllQuestions] = useState<Question[]>([])
-  const [categoryMap, setCategoryMap] = useState<CategoryMap>({})
   const [questionFlags, setQuestionFlags] = useState<QuestionFlag[]>([])
   const [questionNotes, setQuestionNotes] = useState<QuestionNote[]>([])
-  const [loading, loadQuestions] = usePromise(async () => {
-    const res = await getQuestions({ pageSize: 1000 })
-    setAllQuestions(res.data)
-  })
 
   useEffect(() => {
-    loadQuestions()
-  }, [loadQuestions])
-
-  useEffect(() => {
-    getCategories().then(setCategoryMap).catch(() => setCategoryMap({}))
-  }, [])
+    dispatch(fetchQuestionList())
+  }, [dispatch])
 
   useEffect(() => {
     let cancelled = false
-
-    const loadQuestionMeta = async () => {
+    const loadMeta = async () => {
       const [notesResult, flagsResult] = await Promise.allSettled([
         getQuestionNotes(),
         getQuestionFlags(),
       ])
-
       if (cancelled) return
       setQuestionNotes(notesResult.status === 'fulfilled' ? notesResult.value : [])
       setQuestionFlags(flagsResult.status === 'fulfilled' ? flagsResult.value : [])
     }
-
-    void loadQuestionMeta()
-    window.addEventListener('focus', loadQuestionMeta)
-    return () => {
-      cancelled = true
-      window.removeEventListener('focus', loadQuestionMeta)
-    }
+    void loadMeta()
+    window.addEventListener('focus', loadMeta)
+    return () => { cancelled = true; window.removeEventListener('focus', loadMeta) }
   }, [])
 
   return {

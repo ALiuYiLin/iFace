@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useState } from 'react'
-import { usePromise } from '@/hooks/usePromise'
 import { useStudyStore } from '@/store/useStudyStore'
-import { getCategories, getQuestionNotes, getQuestions } from '@/api'
+import { useAppDispatch, useAppSelector } from '@/store/hooks'
+import { fetchDashboard } from '@/store/pages/dashboardSlice'
 import type { CategoryMap, Question, QuestionNote } from '@/api'
 import type { StudyStatus } from '@/types'
 import type { StreakData } from '@/store/useStudyStore'
@@ -32,57 +32,41 @@ function getDailyRecommendations(
   const reviewIds = allIds
     .filter((id) => recordMap[id]?.status === 'review')
     .sort((a, b) => (recordMap[a]?.lastUpdated ?? 0) - (recordMap[b]?.lastUpdated ?? 0))
-
   const unlearnedIds = allIds.filter((id) => !recordMap[id] || recordMap[id].status === 'unlearned')
-
   const result: string[] = []
   const seen = new Set<string>()
   for (const id of [...reviewIds, ...unlearnedIds]) {
     if (result.length >= count) break
-    if (!seen.has(id)) {
-      result.push(id)
-      seen.add(id)
-    }
+    if (!seen.has(id)) { result.push(id); seen.add(id) }
   }
   return Promise.resolve(result)
 }
 
 export function useDashBoardBase(): DashBoardBaseData {
+  const dispatch = useAppDispatch()
   const { records, streak, dailyGoal, hiddenCategories } = useStudyStore()
+  const { allQuestions, categoryMap, questionNotes: storeNotes, loading } = useAppSelector((s) => s.dashboard)
 
-  const [allQuestions, setAllQuestions] = useState<Question[]>([])
-  const [categoryMap, setCategoryMap] = useState<CategoryMap>({})
-  const [questionNotes, setQuestionNotes] = useState<QuestionNote[]>([])
   const [greeting, setGreeting] = useState('')
-  const [loading, loadQuestions] = usePromise(async () => {
-    const res = await getQuestions({ pageSize: 1000 })
-    setAllQuestions(res.data)
-  })
+  const [liveNotes, setLiveNotes] = useState<QuestionNote[]>([])
+
+  const questionNotes = liveNotes.length > 0 ? liveNotes : storeNotes
 
   useEffect(() => {
-    loadQuestions()
-  }, [loadQuestions])
-
-  useEffect(() => {
-    getCategories().then(setCategoryMap).catch(() => setCategoryMap({}))
-  }, [])
+    dispatch(fetchDashboard())
+  }, [dispatch])
 
   useEffect(() => {
     let cancelled = false
     const load = async () => {
       try {
-        const notes = await getQuestionNotes()
-        if (!cancelled) setQuestionNotes(notes)
-      } catch {
-        if (!cancelled) setQuestionNotes([])
-      }
+        const notes = await import('@/api').then((m) => m.getQuestionNotes())
+        if (!cancelled) setLiveNotes(notes)
+      } catch { if (!cancelled) setLiveNotes([]) }
     }
     load()
     window.addEventListener('focus', load)
-    return () => {
-      cancelled = true
-      window.removeEventListener('focus', load)
-    }
+    return () => { cancelled = true; window.removeEventListener('focus', load) }
   }, [])
 
   useEffect(() => {
@@ -96,11 +80,7 @@ export function useDashBoardBase(): DashBoardBaseData {
   }, [])
 
   const getDailyIds = useCallback(
-    async (
-      rm: Record<string, { status: string; lastUpdated: number }>,
-      count = 10,
-      questionIds?: string[],
-    ): Promise<string[]> => {
+    async (rm: Record<string, { status: string; lastUpdated: number }>, count = 10, questionIds?: string[]) => {
       const allIds = questionIds ?? allQuestions.map((q) => q.id)
       return getDailyRecommendations(allIds, rm, count)
     },

@@ -1,7 +1,7 @@
-import { useEffect, useState } from 'react'
-import { usePromise } from '@/hooks/usePromise'
+import { useEffect } from 'react'
 import { useStudyStore } from '@/store/useStudyStore'
-import { getQuestions } from '@/api'
+import { useAppDispatch, useAppSelector } from '@/store/hooks'
+import { fetchWeakPointsData } from '@/store/pages/weakPointsSlice'
 import type { Question } from '@/api'
 
 export interface WeakPointsBaseData {
@@ -12,16 +12,13 @@ export interface WeakPointsBaseData {
 }
 
 export function useWeakPointsBase(): WeakPointsBaseData {
+  const dispatch = useAppDispatch()
   const { records, setStatus } = useStudyStore()
-  const [allQuestions, setAllQuestions] = useState<Question[]>([])
-  const [loading, loadQuestions] = usePromise(async () => {
-    const res = await getQuestions({ pageSize: 1000 })
-    setAllQuestions(res.data)
-  })
+  const { allQuestions, loading } = useAppSelector((s) => s.weakPoints)
 
   useEffect(() => {
-    loadQuestions()
-  }, [loadQuestions])
+    dispatch(fetchWeakPointsData())
+  }, [dispatch])
 
   return { allQuestions, initializing: loading, records, setStatus }
 }

@@ -1,7 +1,7 @@
-import { useEffect, useState } from 'react'
-import { usePromise } from '@/hooks/usePromise'
+import { useEffect } from 'react'
 import { useStudyStore } from '@/store/useStudyStore'
-import { getCategories, getQuestions } from '@/api'
+import { useAppDispatch, useAppSelector } from '@/store/hooks'
+import { fetchPracticeData } from '@/store/pages/practiceSlice'
 import type { CategoryMap, Question } from '@/api'
 
 export interface PracticeBaseData {
@@ -13,21 +13,13 @@ export interface PracticeBaseData {
 }
 
 export function usePracticeBase(): PracticeBaseData {
+  const dispatch = useAppDispatch()
   const { records, hiddenCategories } = useStudyStore()
-  const [allQuestions, setAllQuestions] = useState<Question[]>([])
-  const [categoryMap, setCategoryMap] = useState<CategoryMap>({})
-  const [loading, loadQuestions] = usePromise(async () => {
-    const res = await getQuestions({ pageSize: 1000 })
-    setAllQuestions(res.data)
-  })
+  const { allQuestions, categoryMap, loading } = useAppSelector((s) => s.practice)
 
   useEffect(() => {
-    loadQuestions()
-  }, [loadQuestions])
-
-  useEffect(() => {
-    getCategories().then(setCategoryMap).catch(() => setCategoryMap({}))
-  }, [])
+    dispatch(fetchPracticeData())
+  }, [dispatch])
 
   return { allQuestions, initializing: loading, records, hiddenCategories, categoryMap }
 }

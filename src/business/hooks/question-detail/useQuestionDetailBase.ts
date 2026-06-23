@@ -1,41 +1,30 @@
 import { useEffect, useMemo, useState } from 'react'
 import { useParams, useSearchParams } from 'react-router-dom'
-import { usePromise } from '@/hooks/usePromise'
-import { getQuestion, getQuestions } from '@/api'
 import { readPracticeSession } from '@/lib/practiceSession'
-import { useAIStore } from '@/store/useAIStore'
+import { useAppDispatch, useAppSelector } from '@/store/hooks'
+import { fetchQuestion, fetchAllQuestions, clearQuestion } from '@/store/pages/questionDetailSlice'
 import { useStudyStore } from '@/store/useStudyStore'
-import type { Question } from '@/api'
+import { useAIStore } from '@/store/useAIStore'
 
 export function useQuestionDetailBase() {
+  const dispatch = useAppDispatch()
   const { id } = useParams<{ id: string }>()
   const questionId = id ?? ''
   const [searchParams] = useSearchParams()
 
-  const [question, setQuestion] = useState<Question | undefined>(undefined)
-  const [allQuestions, setAllQuestions] = useState<Question[]>([])
-
-  const [loading, loadQuestion] = usePromise(async (qId: string) => {
-    const data = await getQuestion(qId)
-    setQuestion(data)
-  })
-
-  const [allLoading, loadAllQuestions] = usePromise(async () => {
-    const res = await getQuestions({ pageSize: 1000 })
-    setAllQuestions(res.data)
-  })
+  const { question, loading, allQuestions } = useAppSelector((s) => s.questionDetail)
 
   useEffect(() => {
     if (id) {
-      loadQuestion(id)
+      dispatch(fetchQuestion(id))
     } else {
-      setQuestion(undefined)
+      dispatch(clearQuestion())
     }
-  }, [id, loadQuestion])
+  }, [id, dispatch])
 
   useEffect(() => {
-    loadAllQuestions()
-  }, [loadAllQuestions])
+    dispatch(fetchAllQuestions())
+  }, [dispatch])
 
   const {
     records,
@@ -85,7 +74,7 @@ export function useQuestionDetailBase() {
     id,
     questionId,
     question,
-    loading: loading || allLoading,
+    loading,
     allQuestions,
     records,
     getStatus,
