@@ -1,0 +1,376 @@
+/* ── Overlay ────────────────────────────────────────────────────────────────── */
+.overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 90;
+  background: rgba(17, 17, 24, 0.36);
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
+}
+
+/* ── Dialog ─────────────────────────────────────────────────────────────────── */
+.dialog {
+  position: fixed;
+  inset: max(20px, env(safe-area-inset-top)) 20px 20px;
+  z-index: 91;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  pointer-events: none;
+}
+.dialogInner {
+  width: min(760px, 100%);
+  max-height: calc(100dvh - 40px);
+  overflow: hidden;
+  border: 1px solid var(--border-subtle);
+  border-radius: 16px;
+  box-shadow: var(--shadow-xl);
+  pointer-events: auto;
+  display: flex;
+  flex-direction: column;
+}
+
+/* ── Header ─────────────────────────────────────────────────────────────────── */
+.dialogHeader {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 18px 20px 14px;
+  border-bottom: 1px solid var(--border-subtle);
+  flex-shrink: 0;
+}
+.dialogHeaderLeft {
+  min-width: 0;
+}
+.stepCounter {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 4px;
+}
+.stepNum {
+  font-size: 12px;
+  color: var(--text-3);
+}
+.dialogTitle {
+  font-size: 20px;
+  font-weight: 700;
+  color: var(--text);
+  letter-spacing: -0.015em;
+  line-height: 1.25;
+}
+.dialogCloseBtn {
+  width: 32px; height: 32px;
+  border-radius: 8px;
+  border: none;
+  background: transparent;
+  color: var(--text-3);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  flex-shrink: 0;
+  transition: background 0.15s, color 0.15s;
+}
+.dialogCloseBtn:hover {
+  background: var(--surface-2);
+  color: var(--text);
+}
+
+/* ── Body ───────────────────────────────────────────────────────────────────── */
+.dialogBody {
+  display: grid;
+  grid-template-columns: 168px minmax(0, 1fr);
+  min-height: 430px;
+}
+
+/* ── Sidebar ────────────────────────────────────────────────────────────────── */
+.sidebar {
+  padding: 16px;
+  border-right: 1px solid var(--border-subtle);
+  background: var(--surface);
+}
+.stepBtn {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  width: 100%;
+  padding: 9px 10px;
+  border-radius: 8px;
+  border: none;
+  background: transparent;
+  color: var(--text-2);
+  cursor: pointer;
+  text-align: left;
+  font-size: 13px;
+  font-weight: 500;
+  transition: background 0.15s, color 0.15s;
+}
+.stepBtn[data-active="true"] {
+  background: var(--primary-light);
+  color: var(--primary);
+  font-weight: 600;
+}
+.stepNumBadge {
+  width: 20px; height: 20px;
+  border-radius: 6px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  background: var(--surface-3);
+  color: var(--text-3);
+  flex-shrink: 0;
+  font-size: inherit;
+}
+.stepBtn[data-active="true"] .stepNumBadge,
+.stepBtn[data-done="true"] .stepNumBadge {
+  background: var(--primary);
+  color: white;
+}
+
+/* ── Content ────────────────────────────────────────────────────────────────── */
+.content {
+  padding: 20px;
+  overflow-y: auto;
+  background: var(--surface);
+}
+
+/* ── Welcome step ─────────────────────────────────────────────────────────── */
+.welcomeText {
+  font-size: 13px;
+  color: var(--text-2);
+  line-height: 1.7;
+}
+.featureCards {
+  padding: 2px 14px;
+  border-radius: 12px;
+  border: 1px solid var(--border-subtle);
+  background: var(--surface-2);
+}
+.featureRow {
+  display: grid;
+  grid-template-columns: 28px minmax(0, 1fr);
+  gap: 10px;
+  align-items: flex-start;
+  padding: 12px 0;
+  border-top: 1px solid var(--border-subtle);
+}
+.featureRow:first-child {
+  border-top: none;
+}
+.featureNum {
+  width: 28px; height: 28px;
+  border-radius: 8px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  background: var(--primary-light);
+  color: var(--primary);
+  font-size: 12px;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+}
+.featureBody {
+  min-width: 0;
+}
+.featureTitle {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--text);
+  margin-bottom: 2px;
+}
+.featureDesc {
+  font-size: 12px;
+  color: var(--text-3);
+  line-height: 1.55;
+  margin: 0;
+}
+
+/* ── Banks step ─────────────────────────────────────────────────────────────── */
+.banksDesc {
+  font-size: 13px;
+  color: var(--text-2);
+  line-height: 1.7;
+}
+.bankActions {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+.bankGrid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 8px;
+}
+.bankCard {
+  min-height: 86px;
+  padding: 12px;
+  border-radius: 10px;
+  border: 1px solid var(--border-subtle);
+  background: var(--surface-2);
+  text-align: left;
+  cursor: pointer;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  transition: border-color 0.15s, background 0.15s;
+}
+.bankCard[data-enabled="true"] {
+  border-color: rgba(var(--primary-rgb), 0.3);
+  background: var(--primary-light);
+}
+.bankCardTop {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+.bankName {
+  min-width: 0;
+  font-size: 14px;
+  font-weight: 700;
+  color: var(--text-3);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.bankCard[data-enabled="true"] .bankName {
+  color: var(--primary);
+}
+.bankToggle {
+  width: 32px; height: 18px;
+  border-radius: 99px;
+  background: var(--border);
+  position: relative;
+  flex-shrink: 0;
+  transition: background 0.2s;
+}
+.bankCard[data-enabled="true"] .bankToggle {
+  background: var(--primary);
+}
+.bankToggleKnob {
+  position: absolute;
+  top: 3px;
+  left: 3px;
+  width: 12px; height: 12px;
+  border-radius: 50%;
+  background: white;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.2);
+  transition: left 0.2s;
+}
+.bankCard[data-enabled="true"] .bankToggleKnob {
+  left: 17px;
+}
+.bankModules {
+  font-size: 12px;
+  color: var(--text-3);
+  line-height: 1.5;
+  display: block;
+}
+.bankStatus {
+  align-self: flex-start;
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--text-3);
+}
+.bankCard[data-enabled="true"] .bankStatus {
+  color: var(--primary);
+}
+.banksFootNote {
+  font-size: 12px;
+  color: var(--text-3);
+  line-height: 1.6;
+}
+
+/* ── Workflow step ──────────────────────────────────────────────────────────── */
+.workflowText {
+  font-size: 13px;
+  color: var(--text-2);
+  line-height: 1.7;
+}
+.actionGrid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 10px;
+}
+.actionCard {
+  min-height: 156px;
+  padding: 14px;
+  border-radius: 12px;
+  border: 1px solid var(--border-subtle);
+  background: var(--surface-2);
+  text-align: left;
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  gap: 16px;
+}
+.actionCardTitle {
+  display: block;
+  font-size: 14px;
+  font-weight: 700;
+  color: var(--text);
+  margin-bottom: 6px;
+}
+.actionCardBody {
+  display: block;
+  font-size: 12px;
+  color: var(--text-3);
+  line-height: 1.55;
+}
+.actionCardLabel {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  color: var(--primary);
+  font-size: 12px;
+  font-weight: 600;
+}
+.tipCard {
+  padding: 12px;
+  border-radius: 10px;
+  border: 1px solid rgba(var(--primary-rgb), 0.18);
+  background: var(--primary-light);
+  color: var(--text-2);
+  font-size: 12px;
+  line-height: 1.65;
+}
+
+/* ── Footer ─────────────────────────────────────────────────────────────────── */
+.dialogFooter {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  padding: 14px 20px;
+  border-top: 1px solid var(--border-subtle);
+  flex-shrink: 0;
+  background: var(--surface);
+}
+.footerButtons {
+  display: flex;
+  gap: 8px;
+}
+
+/* ── Media Queries ──────────────────────────────────────────────────────────── */
+@media (max-width: 760px) {
+  .dialogBody {
+    grid-template-columns: 1fr !important;
+  }
+  .sidebar {
+    display: flex;
+    gap: 6px;
+    border-right: none !important;
+    border-bottom: 1px solid var(--border-subtle);
+    overflow-x: auto;
+  }
+  .stepBtn {
+    width: auto !important;
+    min-width: 96px;
+  }
+  .bankGrid,
+  .actionGrid {
+    grid-template-columns: 1fr !important;
+  }
+}

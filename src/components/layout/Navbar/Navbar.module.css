@@ -1,0 +1,188 @@
+/* ── Navbar ─────────────────────────────────────────────────────────────────── */
+.header {
+  position: fixed;
+  top: 0; left: 0; right: 0;
+  z-index: 50;
+  height: var(--navbar-h);
+  border-bottom: 1px solid transparent;
+  background: transparent;
+  transition: background 0.25s, border-color 0.25s, backdrop-filter 0.25s;
+}
+.header[data-scrolled="true"] {
+  border-bottom: 1px solid var(--border-subtle);
+  background: var(--surface-glass);
+  backdrop-filter: saturate(180%) blur(20px);
+  -webkit-backdrop-filter: saturate(180%) blur(20px);
+}
+.inner {
+  max-width: 1100px;
+  margin: 0 auto;
+  height: 100%;
+  padding: 0 20px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.logo {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  text-decoration: none;
+  margin-right: 8px;
+  flex-shrink: 0;
+}
+.logoText {
+  font-size: 15px;
+  font-weight: 600;
+  color: var(--text);
+  letter-spacing: -0.01em;
+}
+.nav {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  flex: 1;
+}
+.navLink {
+  padding: 5px 12px;
+  border-radius: 8px;
+  font-size: 14px;
+  font-weight: 500;
+  color: var(--text-2);
+  letter-spacing: 0.003em;
+  text-decoration: none;
+  transition: color 0.15s, background 0.15s;
+  white-space: nowrap;
+}
+.navLink:hover {
+  color: var(--text);
+  background: var(--surface-2);
+}
+.navLink[data-active="true"] {
+  color: var(--primary);
+  background: var(--primary-light);
+}
+.navLink[data-active="true"]:hover {
+  color: var(--primary);
+  background: var(--primary-light);
+}
+.actions {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  flex-shrink: 0;
+}
+.actionBtn {
+  width: 32px; height: 32px;
+  border-radius: 8px;
+  border: none;
+  background: transparent;
+  color: var(--text-2);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  transition: background 0.15s, color 0.15s;
+  flex-shrink: 0;
+}
+.actionBtn:hover {
+  background: var(--surface-2);
+  color: var(--text);
+}
+.actionBtn[data-open="true"] {
+  background: var(--surface-2);
+}
+.mobileOverlay {
+  position: fixed;
+  inset: 0;
+  z-index: 40;
+  background: rgba(0, 0, 0, 0.2);
+  border: none;
+  padding: 0;
+  margin: 0;
+  cursor: pointer;
+}
+.mobileMenu {
+  position: fixed;
+  top: var(--navbar-h);
+  left: 0;
+  right: 0;
+  z-index: 45;
+  background: var(--surface-glass);
+  backdrop-filter: saturate(180%) blur(20px);
+  -webkit-backdrop-filter: saturate(180%) blur(20px);
+  border-bottom: 1px solid var(--border-subtle);
+  padding: 8px 16px 16px;
+  display: none;
+  flex-direction: column;
+  gap: 2px;
+  box-shadow: var(--shadow-lg);
+  animation: slide-down 0.2s var(--ease-out) both;
+}
+.mobileMenu[data-open="true"] {
+  display: flex;
+}
+.mobileLink {
+  padding: 10px 14px;
+  border-radius: 10px;
+  font-size: 15px;
+  font-weight: 400;
+  color: var(--text);
+  background: transparent;
+  text-decoration: none;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+.mobileLink[data-active="true"] {
+  font-weight: 500;
+  color: var(--primary);
+  background: var(--primary-light);
+}
+.mobileActiveDot {
+  width: 6px; height: 6px;
+  border-radius: 50%;
+  background: var(--primary);
+}
+.mobileSettingsBtn {
+  padding: 10px 14px;
+  border-radius: 10px;
+  font-size: 15px;
+  font-weight: 400;
+  color: var(--text);
+  background: transparent;
+  border: none;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+  text-align: left;
+  margin-top: 4px;
+  border-top: 1px solid var(--border-subtle);
+}
+.mobileSettingsIcon {
+  color: var(--text-2);
+  flex-shrink: 0;
+  display: flex;
+}
+.filler {
+  flex: 1;
+}
+@keyframes slide-down {
+  from { opacity: 0; transform: translateY(-6px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+
+/* ── Global responsive classes ──────────────────────────────────────────────── */
+:global(.hidden-mobile) { }
+:global(.show-mobile) { }
+
+@media (max-width: 640px) {
+  :global(.hidden-mobile) { display: none !important; }
+  :global(.show-mobile) { display: flex !important; }
+  .mobileMenu[data-open="true"] { display: flex !important; }
+}
+@media (min-width: 641px) {
+  :global(.show-mobile) { display: none !important; }
+}
