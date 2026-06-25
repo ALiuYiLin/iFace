@@ -1,6 +1,9 @@
 import { useCallback, useEffect, useState } from 'react'
-import type { StreakData } from '@/store/useStudyStore'
+import { useAppSelector } from '@/store/hooks'
+import { useNameSpace } from '@/utils'
+import styles from './StreakBanner.module.css'
 
+const ns = useNameSpace(styles)
 const STREAK_DISMISS_KEY = 'iface_streak_banner_dismissed_date'
 
 const milestones: {
@@ -61,13 +64,11 @@ const milestones: {
   },
 ]
 
-export function StreakBanner({
-  streak,
-  dailyGoal,
-}: {
-  streak: StreakData
-  dailyGoal: number
-}) {
+export function StreakBanner() {
+  const { streak, dailyGoal } = useAppSelector((s) => ({
+    streak: s.study.streak,
+    dailyGoal: s.study.dailyGoal,
+  }))
   const [dismissed, setDismissed] = useState(() => {
     try {
       const stored = localStorage.getItem(STREAK_DISMISS_KEY)
@@ -80,7 +81,6 @@ export function StreakBanner({
   })
   const [visible, setVisible] = useState(false)
 
-  // Animate in after mount
   useEffect(() => {
     const t = setTimeout(() => setVisible(true), 80)
     return () => clearTimeout(t)
@@ -90,150 +90,67 @@ export function StreakBanner({
     try {
       const today = new Date().toISOString().slice(0, 10)
       localStorage.setItem(STREAK_DISMISS_KEY, today)
-    } catch {
-      // ignore
-    }
+    } catch { /* ignore */ }
     setDismissed(true)
   }, [])
 
   if (dismissed || streak.todayCount === 0) return null
 
-  const hit =
-    milestones.find((m) => streak.currentStreak >= m.min) ??
-    milestones[milestones.length - 1]
+  const hit = milestones.find((m) => streak.currentStreak >= m.min) ?? milestones[milestones.length - 1]
 
   return (
     <div
-      style={{
-        display: 'flex',
-        alignItems: 'center',
-        gap: 12,
-        padding: '12px 16px',
-        borderRadius: 12,
-        background: hit.bg,
-        border: `1px solid ${hit.border}`,
-        marginBottom: 20,
-        opacity: visible ? 1 : 0,
-        transform: visible ? 'translateY(0)' : 'translateY(-6px)',
-        transition: 'opacity 0.3s var(--ease-out), transform 0.3s var(--ease-out)',
-      }}
+      className={ns('banner', visible && 'bannerVisible')}
+      style={{ background: hit.bg, border: `1px solid ${hit.border}` }}
     >
-      {/* Emoji */}
-      <span style={{ fontSize: 22, flexShrink: 0, lineHeight: 1 }}>{hit.emoji}</span>
+      <span className={ns('emoji')}>{hit.emoji}</span>
 
-      {/* Text */}
-      <div style={{ flex: 1, minWidth: 0 }}>
-        <p style={{ fontSize: 13, fontWeight: 600, color: hit.color, marginBottom: 1 }}>
-          {hit.msg}
-        </p>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 12, flexWrap: 'wrap' }}>
-          <span style={{ fontSize: 12, color: 'var(--text-3)' }}>
+      <div className={ns('textContainer')}>
+        <p className={ns('message')} style={{ color: hit.color }}>{hit.msg}</p>
+        <div className={ns('statsRow')}>
+          <span className={ns('statText')}>
             今日作答{' '}
-            <span
-              style={{
-                fontWeight: 600,
-                color: 'var(--text-2)',
-                fontVariantNumeric: 'tabular-nums',
-              }}
-            >
-              {streak.todayCount}
-            </span>{' '}
-            题
+            <span className={ns('statValue')}>{streak.todayCount}</span>
+            {' '}题
           </span>
           {streak.currentStreak >= 2 && (
-            <span style={{ fontSize: 12, color: 'var(--text-3)' }}>
+            <span className={ns('statText')}>
               🔥 当前连击{' '}
-              <span
-                style={{ fontWeight: 600, color: hit.color, fontVariantNumeric: 'tabular-nums' }}
-              >
+              <span className={ns('statValueHighlight')} style={{ color: hit.color }}>
                 {streak.currentStreak}
               </span>
             </span>
           )}
           {streak.bestStreak > 0 && (
-            <span style={{ fontSize: 12, color: 'var(--text-3)' }}>
+            <span className={ns('statText')}>
               最高记录{' '}
-              <span
-                style={{
-                  fontWeight: 600,
-                  color: 'var(--text-2)',
-                  fontVariantNumeric: 'tabular-nums',
-                }}
-              >
-                {streak.bestStreak}
-              </span>
+              <span className={ns('statValue')}>{streak.bestStreak}</span>
             </span>
           )}
         </div>
       </div>
 
-      {/* Progress mini bar */}
       {streak.todayCount > 0 && (
-        <div
-          style={{
-            display: 'flex',
-            flexDirection: 'column',
-            alignItems: 'flex-end',
-            gap: 4,
-            flexShrink: 0,
-          }}
-        >
-          <span
-            style={{ fontSize: 11, color: 'var(--text-3)', fontVariantNumeric: 'tabular-nums' }}
-          >
-            目标 {dailyGoal} 题
-          </span>
-          <div
-            style={{
-              width: 80,
-              height: 4,
-              background: 'var(--border)',
-              borderRadius: 99,
-              overflow: 'hidden',
-            }}
-          >
+        <div className={ns('progressContainer')}>
+          <span className={ns('progressLabel')}>目标 {dailyGoal} 题</span>
+          <div className={ns('progressTrack')}>
             <div
+              className={ns('progressBar')}
               style={{
-                height: '100%',
-                background: hit.color,
-                borderRadius: 99,
                 width: `${Math.min(100, (streak.todayCount / dailyGoal) * 100)}%`,
-                transition: 'width 0.6s var(--ease-out)',
+                background: hit.color,
               }}
             />
           </div>
           {streak.todayCount >= dailyGoal && (
-            <span style={{ fontSize: 10, color: hit.color, fontWeight: 600 }}>
+            <span className={ns('goalReached')} style={{ color: hit.color }}>
               今日目标达成 🎉
             </span>
           )}
         </div>
       )}
 
-      {/* Dismiss */}
-      <button
-        type="button"
-        onClick={handleDismiss}
-        style={{
-          background: 'none',
-          border: 'none',
-          color: 'var(--text-3)',
-          cursor: 'pointer',
-          padding: '2px 4px',
-          borderRadius: 4,
-          fontSize: 16,
-          lineHeight: 1,
-          flexShrink: 0,
-          transition: 'color 0.15s',
-        }}
-        onMouseEnter={(e) => {
-          ;(e.currentTarget as HTMLElement).style.color = 'var(--text)'
-        }}
-        onMouseLeave={(e) => {
-          ;(e.currentTarget as HTMLElement).style.color = 'var(--text-3)'
-        }}
-        aria-label="关闭"
-      >
+      <button type="button" onClick={handleDismiss} className={ns('dismissBtn')} aria-label="关闭">
         ×
       </button>
     </div>

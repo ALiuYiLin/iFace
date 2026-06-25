@@ -1,10 +1,9 @@
-import { useCallback, useEffect, useMemo, useState } from 'react'
-import { useNavigate, useSearchParams } from 'react-router-dom'
+import { useCallback, useMemo } from 'react'
+import { useNavigate } from 'react-router-dom'
 import { Button, EmptyState, Skeleton } from '@/components/ui'
-import { createPracticeSessionPath } from '@/lib/practiceSession'
 import { useNameSpace } from '@/utils'
 import { ModuleCard, DifficultyChip, StatusChip, SessionPreview } from '@/business/components/practice'
-import { usePracticeBase, usePracticeDerived } from '@/business/hooks/practice'
+import { usePracticeBase, usePracticeDerived, usePracticeUI } from '@/business/hooks/practice'
 import type { Difficulty, Module, StudyStatus } from '@/types'
 import styles from './Practice.module.css'
 
@@ -12,60 +11,15 @@ const ns = useNameSpace(styles)
 
 export default function Practice() {
   const navigate = useNavigate()
-  const [searchParams] = useSearchParams()
   const base = usePracticeBase()
-  const [selectedModules, setSelectedModules] = useState<Module[]>([])
-  const [selectedDifficulty, setSelectedDifficulty] = useState<Difficulty | 'all'>('all')
-  const [selectedStatus, setSelectedStatus] = useState<StudyStatus | 'all'>('all')
-  const [isShuffled, setIsShuffled] = useState(false)
-
-  const derived = usePracticeDerived(base, selectedModules, selectedDifficulty, selectedStatus)
+  const ui = usePracticeUI(base)
+  const derived = usePracticeDerived(base, ui.selectedModules, ui.selectedDifficulty, ui.selectedStatus)
   const { visibleQuestions, moduleStats, categoriesWithModules, difficultyStats, filteredQuestions, statusCounts } = derived
 
-  // Handle preset from URL params
-  useEffect(() => {
-    const ids = searchParams.get('ids')
-    if (ids) {
-      const idList = ids.split(',').filter(Boolean)
-      if (idList.length > 0) {
-        navigate(`/questions/${idList[0]}?ids=${ids}`, { replace: true })
-      }
-    }
-  }, [searchParams, navigate])
-
-  // Clean up selected modules when active modules change
-  const activeModules = useMemo(() => [...new Set(visibleQuestions.map((q) => q.module))], [visibleQuestions])
-  useEffect(() => {
-    const activeSet = new Set(activeModules)
-    setSelectedModules((prev) => prev.filter((m) => activeSet.has(m)))
-  }, [activeModules])
-
-  const toggleModule = useCallback((mod: Module) => {
-    setSelectedModules((prev) =>
-      prev.includes(mod) ? prev.filter((m) => m !== mod) : [...prev, mod],
-    )
-  }, [])
-
-  const toggleCategory = useCallback((catModules: Module[]) => {
-    setSelectedModules((prev) => {
-      const allSelected = catModules.every((m) => prev.includes(m))
-      if (allSelected) return prev.filter((m) => !catModules.includes(m))
-      const toAdd = catModules.filter((m) => !prev.includes(m))
-      return [...prev, ...toAdd]
-    })
-  }, [])
-
   const handleStart = useCallback(() => {
-    if (filteredQuestions.length === 0) return
     const ids = filteredQuestions.map((q) => q.id)
-    if (isShuffled) {
-      for (let i = ids.length - 1; i > 0; i--) {
-        const j = Math.floor(Math.random() * (i + 1));
-        [ids[i], ids[j]] = [ids[j], ids[i]]
-      }
-    }
-    navigate(createPracticeSessionPath(ids[0], ids))
-  }, [filteredQuestions, isShuffled, navigate])
+    ui.handleStart(ids)
+  }, [filteredQuestions, ui])
 
   if (base.initializing) {
     return (
@@ -113,12 +67,12 @@ export default function Practice() {
             <div className="animate-fade-in">
               <p className={ns('sectionLabel')}>难度</p>
               <div className={ns('chipRow')} style={{ marginTop: 10 }}>
-                <DifficultyChip difficulty="all" selected={selectedDifficulty === 'all'}
-                  count={selectedModules.length > 0 ? visibleQuestions.filter((q) => selectedModules.includes(q.module)).length : visibleQuestions.length}
-                  onClick={() => setSelectedDifficulty('all')} />
+                <DifficultyChip difficulty="all" selected={ui.selectedDifficulty === 'all'}
+                  count={ui.selectedModules.length > 0 ? visibleQuestions.filter((q) => ui.selectedModules.includes(q.module)).length : visibleQuestions.length}
+                  onClick={() => ui.setSelectedDifficulty('all')} />
                 {([1, 2, 3] as Difficulty[]).map((d) => (
-                  <DifficultyChip key={d} difficulty={d} selected={selectedDifficulty === d}
-                    count={difficultyStats[d]} onClick={() => setSelectedDifficulty(d)} />
+                  <DifficultyChip key={d} difficulty={d} selected={ui.selectedDifficulty === d}
+                    count={difficultyStats[d]} onClick={() => ui.setSelectedDifficulty(d)} />
                 ))}
               </div>
             </div>
@@ -128,8 +82,8 @@ export default function Practice() {
               <p className={ns('sectionLabel')}>学习状态</p>
               <div className={ns('chipRow')} style={{ marginTop: 10 }}>
                 {(['all', 'unlearned', 'review', 'mastered'] as const).map((s) => (
-                  <StatusChip key={s} status={s} selected={selectedStatus === s}
-                    count={statusCounts[s]} onClick={() => setSelectedStatus(s)} />
+                  <StatusChip key={s} status={s} selected={ui.selectedStatus === s}
+                    count={statusCounts[s]} onClick={() => ui.setSelectedStatus(s)} />
                 ))}
               </div>
             </div>
@@ -138,8 +92,8 @@ export default function Practice() {
             <div className="animate-fade-in stagger-2">
               <div className={ns('sectionHeader')}>
                 <p className={ns('sectionLabel')}>选择模块</p>
-                {selectedModules.length > 0 && (
-                  <button type="button" onClick={() => setSelectedModules([])} className={ns('clearBtn')}>
+                {ui.selectedModules.length > 0 && (
+                  <button type="button" onClick={() => ui.setSelectedModules([])} className={ns('clearBtn')}>
                     清除选择
                   </button>
                 )}
@@ -148,12 +102,12 @@ export default function Practice() {
               <div className={ns('moduleSections')}>
                 {categoriesWithModules.map((cat) => {
                   const catMods = cat.modules as Module[]
-                  const allCatSelected = catMods.length > 0 && catMods.every((m) => selectedModules.includes(m))
-                  const someCatSelected = catMods.some((m) => selectedModules.includes(m))
+                  const allCatSelected = catMods.length > 0 && catMods.every((m) => ui.selectedModules.includes(m))
+                  const someCatSelected = catMods.some((m) => ui.selectedModules.includes(m))
                   return (
                     <div key={cat.name}>
                       <div className={ns('categoryHeader')}>
-                        <button type="button" onClick={() => toggleCategory(catMods)} className={ns('categoryBtn')}
+                        <button type="button" onClick={() => ui.toggleCategory(catMods)} className={ns('categoryBtn')}
                           title={allCatSelected ? '取消全选此分类' : '全选此分类'}>
                           <span className={ns('checkbox')}
                             style={{
@@ -180,9 +134,9 @@ export default function Practice() {
                           const stat = moduleStats.find((s) => s.module === mod)
                           return (
                             <ModuleCard key={mod} module={mod}
-                              selected={selectedModules.includes(mod)}
+                              selected={ui.selectedModules.includes(mod)}
                               questionCount={stat?.total ?? 0} masteredCount={stat?.mastered ?? 0}
-                              onClick={() => toggleModule(mod)} />
+                              onClick={() => ui.toggleModule(mod)} />
                           )
                         })}
                       </div>
@@ -194,9 +148,9 @@ export default function Practice() {
           </div>
 
           <div className={ns('sessionPreview')}>
-            <SessionPreview count={filteredQuestions.length} modules={selectedModules}
-              difficulty={selectedDifficulty} statusFilter={selectedStatus}
-              onStart={handleStart} onShuffle={() => setIsShuffled((v) => !v)} isShuffled={isShuffled} />
+            <SessionPreview count={filteredQuestions.length} modules={ui.selectedModules}
+              difficulty={ui.selectedDifficulty} statusFilter={ui.selectedStatus}
+              onStart={handleStart} onShuffle={() => ui.setIsShuffled(!ui.isShuffled)} isShuffled={ui.isShuffled} />
 
             {filteredQuestions.length > 0 && (
               <div className={ns('previewList')}>

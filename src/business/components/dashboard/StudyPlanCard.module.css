@@ -1,0 +1,122 @@
+/* ─── Study Plan Card ───────────────────────────────────── */
+
+.card {
+  padding: 20px;
+}
+
+.grid {
+  display: grid;
+  grid-template-columns: 1.2fr 1fr;
+  gap: 18px;
+  align-items: stretch;
+}
+
+.leftCol {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  min-width: 0;
+}
+
+.sectionLabel {
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--text-3);
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  margin-bottom: 6px;
+}
+
+.headline {
+  font-size: 18px;
+  font-weight: 700;
+  color: var(--text);
+  line-height: 1.35;
+  letter-spacing: -0.01em;
+}
+
+.subline {
+  font-size: 13px;
+  color: var(--text-2);
+  margin-top: 6px;
+  line-height: 1.65;
+}
+
+.progressRow {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.progressTrack {
+  flex: 1;
+  height: 8px;
+  border-radius: 99px;
+  background: var(--surface-3);
+  overflow: hidden;
+}
+
+.progressFill {
+  height: 100%;
+  border-radius: 99px;
+  transition: width 0.5s var(--ease-out);
+}
+
+.progressLabel {
+  font-size: 12px;
+  color: var(--text-3);
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
+.actions {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+/* ─── Right: Signals Grid ──────────────────────────────── */
+
+.signalsGrid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 10px;
+  min-width: 0;
+}
+
+.signalCard {
+  border-radius: 10px;
+  border: 1px solid var(--border-subtle);
+  background: var(--surface-2);
+  padding: 11px 12px;
+  min-width: 0;
+}
+
+.signalLabel {
+  font-size: 11px;
+  color: var(--text-3);
+  margin-bottom: 4px;
+}
+
+.signalValue {
+  font-size: 16px;
+  font-weight: 700;
+  line-height: 1.2;
+  font-variant-numeric: tabular-nums;
+}
+
+.signalDetail {
+  font-size: 11px;
+  color: var(--text-3);
+  margin-top: 5px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.signalBar {
+  width: 22px;
+  height: 3px;
+  border-radius: 99px;
+  margin-top: 8px;
+}

@@ -3,7 +3,7 @@ import { Button, EmptyState, SegmentedRing, Skeleton } from '@/components/ui'
 import { StatCard } from '@/components/StatCard'
 import { STATUS_LABELS } from '@/types'
 import { useNameSpace } from '@/utils'
-import { useDashBoardBase, useDashBoardDerived } from '@/business/hooks/dashboard'
+import { useDashBoardBase, useDashBoardDerived, useDashboardUI } from '@/business/hooks/dashboard'
 
 import {
   DashboardSkeleton,
@@ -25,8 +25,9 @@ const ns = useNameSpace(styles)
 export default function Dashboard() {
   const base = useDashBoardBase()
   const derived = useDashBoardDerived(base)
+  const { greeting } = useDashboardUI()
 
-  const { greeting, records, streak, dailyGoal, allQuestions, loading } = base
+  const { records, dailyGoal, allQuestions, loading } = base
   const {
     dailyIds,
     dailyLoading,
@@ -53,7 +54,7 @@ export default function Dashboard() {
   return (
     <div className="page-container">
       {/* ── Streak Banner ── */}
-      {!hasNoQuestions && <StreakBanner streak={streak} dailyGoal={dailyGoal} />}
+      {!hasNoQuestions && <StreakBanner />}
 
       {/* ── Greeting ── */}
       <div className={ns('greeting', 'animate-fade-in')}>
@@ -216,7 +217,6 @@ export default function Dashboard() {
                     key={module}
                     module={module}
                     questions={qs}
-                    records={records}
                   />
                 ))}
               </div>
@@ -227,11 +227,8 @@ export default function Dashboard() {
             <StudyPlanCard
               dailyIds={dailyIds}
               questions={visibleQuestions}
-              records={records}
               moduleStats={moduleStats}
               counts={counts}
-              dailyGoal={dailyGoal}
-              streak={streak}
             />
 
             <RecentNotesCard notes={recentNoteItems.slice(0, 4)} total={recentNoteItems.length} />
@@ -282,8 +279,6 @@ export default function Dashboard() {
                     key={id}
                     questionId={id}
                     index={i}
-                    questions={visibleQuestions}
-                    records={records}
                   />
                 ))}
               </div>

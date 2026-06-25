@@ -1,128 +1,45 @@
 import { Link } from 'react-router-dom'
-import type { Module, StudyStatus } from '@/types'
+import { useAppSelector } from '@/store/hooks'
+import { useNameSpace } from '@/utils'
+import type { Module } from '@/types'
+import styles from './ModuleProgressBar.module.css'
+
+const ns = useNameSpace(styles)
 
 export function ModuleProgressBar({
   module,
   questions,
-  records,
 }: {
   module: Module
   questions: { id: string }[]
-  records: Record<string, { status: StudyStatus }>
 }) {
+  const records = useAppSelector((s) => s.study.records)
   const total = questions.length
   const mastered = questions.filter((q) => records[q.id]?.status === 'mastered').length
   const review = questions.filter((q) => records[q.id]?.status === 'review').length
   const percent = total > 0 ? Math.round((mastered / total) * 100) : 0
 
+  const percentColor = percent === 100 ? 'var(--success)' : percent > 0 ? 'var(--primary)' : 'var(--text-3)'
+
   return (
-    <Link
-      to={`/questions?module=${encodeURIComponent(module)}`}
-      style={{
-        display: 'flex',
-        alignItems: 'center',
-        gap: 12,
-        padding: '8px 10px',
-        borderRadius: 10,
-        textDecoration: 'none',
-        transition: 'background 0.15s',
-      }}
-      onMouseEnter={(e) => {
-        ;(e.currentTarget as HTMLElement).style.background = 'var(--surface-2)'
-      }}
-      onMouseLeave={(e) => {
-        ;(e.currentTarget as HTMLElement).style.background = 'transparent'
-      }}
-    >
-      <div style={{ flex: 1, minWidth: 0 }}>
-        <div
-          style={{
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'space-between',
-            marginBottom: 5,
-          }}
-        >
-          <span
-            style={{
-              fontSize: 13,
-              fontWeight: 500,
-              color: 'var(--text)',
-              overflow: 'hidden',
-              textOverflow: 'ellipsis',
-              whiteSpace: 'nowrap',
-            }}
-          >
-            {module}
-          </span>
-          <span
-            style={{
-              fontSize: 11,
-              color: 'var(--text-3)',
-              flexShrink: 0,
-              marginLeft: 8,
-            }}
-          >
-            {mastered}/{total}
-          </span>
+    <Link to={`/questions?module=${encodeURIComponent(module)}`} className={ns('link')}>
+      <div className={ns('body')}>
+        <div className={ns('header')}>
+          <span className={ns('name')}>{module}</span>
+          <span className={ns('count')}>{mastered}/{total}</span>
         </div>
-        <div
-          style={{
-            height: 4,
-            background: 'var(--surface-3)',
-            borderRadius: 99,
-            overflow: 'hidden',
-          }}
-        >
-          <div
-            style={{
-              height: '100%',
-              display: 'flex',
-              borderRadius: 99,
-              overflow: 'hidden',
-            }}
-          >
+        <div className={ns('track')}>
+          <div className={ns('barGroup')}>
             {mastered > 0 && (
-              <div
-                style={{
-                  height: '100%',
-                  background: 'var(--success)',
-                  width: `${(mastered / total) * 100}%`,
-                  transition: 'width 0.6s cubic-bezier(0.22,1,0.36,1)',
-                }}
-              />
+              <div className={ns('barMastered')} style={{ width: `${(mastered / total) * 100}%` }} />
             )}
             {review > 0 && (
-              <div
-                style={{
-                  height: '100%',
-                  background: 'var(--warning)',
-                  width: `${(review / total) * 100}%`,
-                  transition: 'width 0.6s cubic-bezier(0.22,1,0.36,1)',
-                }}
-              />
+              <div className={ns('barReview')} style={{ width: `${(review / total) * 100}%` }} />
             )}
           </div>
         </div>
       </div>
-      <span
-        style={{
-          fontSize: 11,
-          fontWeight: 600,
-          flexShrink: 0,
-          minWidth: 30,
-          textAlign: 'right',
-          color:
-            percent === 100
-              ? 'var(--success)'
-              : percent > 0
-                ? 'var(--primary)'
-                : 'var(--text-3)',
-          fontVariantNumeric: 'tabular-nums',
-        }}
-      >
-        {percent}%
-      </span>
+      <span className={ns('percent')} style={{ color: percentColor }}>{percent}%</span>
     </Link>
   )
 }

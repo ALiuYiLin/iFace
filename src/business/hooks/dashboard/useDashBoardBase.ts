@@ -21,7 +21,6 @@ export interface DashBoardBaseData {
   hiddenCategories: Set<string>
   categoryMap: CategoryMap
   questionNotes: QuestionNote[]
-  greeting: string
 }
 
 function getDailyRecommendations(
@@ -47,7 +46,6 @@ export function useDashBoardBase(): DashBoardBaseData {
   const { records, streak, dailyGoal, hiddenCategories } = useStudyStore()
   const { allQuestions, categoryMap, questionNotes: storeNotes, loading } = useAppSelector((s) => s.dashboard)
 
-  const [greeting, setGreeting] = useState('')
   const [liveNotes, setLiveNotes] = useState<QuestionNote[]>([])
 
   const questionNotes = liveNotes.length > 0 ? liveNotes : storeNotes
@@ -69,16 +67,6 @@ export function useDashBoardBase(): DashBoardBaseData {
     return () => { cancelled = true; window.removeEventListener('focus', load) }
   }, [])
 
-  useEffect(() => {
-    const h = new Date().getHours()
-    if (h < 6) setGreeting('夜深了，注意休息')
-    else if (h < 10) setGreeting('早上好，开始今天的备战')
-    else if (h < 13) setGreeting('上午好，专注备战')
-    else if (h < 17) setGreeting('下午好，继续加油')
-    else if (h < 20) setGreeting('晚上好，刷题时间到')
-    else setGreeting('晚上好，坚持就是胜利')
-  }, [])
-
   const getDailyIds = useCallback(
     async (rm: Record<string, { status: string; lastUpdated: number }>, count = 10, questionIds?: string[]) => {
       const allIds = questionIds ?? allQuestions.map((q) => q.id)
@@ -98,6 +86,5 @@ export function useDashBoardBase(): DashBoardBaseData {
     hiddenCategories,
     categoryMap,
     questionNotes,
-    greeting,
   }
 }

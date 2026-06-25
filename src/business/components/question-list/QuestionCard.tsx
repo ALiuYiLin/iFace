@@ -1,6 +1,7 @@
 import { memo } from 'react'
 import { Link } from 'react-router-dom'
 import { useNameSpace } from '@/utils'
+import { useAppSelector } from '@/store/hooks'
 import { preloadRoute } from '@/lib/routePreload'
 import {
   DIFFICULTY_LABELS,
@@ -9,7 +10,6 @@ import {
   STATUS_STYLES,
   type Difficulty,
   type Module,
-  type StudyStatus,
 } from '@/types'
 import styles from './QuestionCard.module.css'
 
@@ -24,23 +24,23 @@ interface QuestionCardProps {
     tags: string[]
     source?: string
   }
-  status: StudyStatus
   index: number
-  starred: boolean
-  hasNote: boolean
   noteSearchMatched?: boolean
   noteSnippet?: string
 }
 
 export const QuestionCard = memo(function QuestionCard({
   question: q,
-  status,
   index,
-  starred,
-  hasNote,
   noteSearchMatched,
   noteSnippet,
 }: QuestionCardProps) {
+  const status = useAppSelector((s) => s.study.records[q.id]?.status ?? 'unlearned')
+  const starred = useAppSelector((s) => s.questionList.starredIds.includes(q.id))
+  const hasNote = useAppSelector((s) =>
+    s.questionList.questionNotes.some((n) => n.questionId === q.id && n.content.trim().length > 0),
+  )
+
   const statusClass =
     status === 'mastered'
       ? 'statusStripMastered'
@@ -56,20 +56,15 @@ export const QuestionCard = memo(function QuestionCard({
       onPointerEnter={() => preloadRoute('questionDetail')}
       onFocus={() => preloadRoute('questionDetail')}
     >
-      {/* Status indicator strip */}
       <div className={ns('statusStrip', statusClass)} />
 
       <div className={ns('body')}>
-        {/* Question text */}
         <p className={ns('questionText')}>{q.question}</p>
 
-        {/* Meta row */}
         <div className={ns('metaRow')}>
-          {/* Module */}
           <span className={ns('metaModule')}>{q.module}</span>
           <span className={ns('metaDot')}>·</span>
 
-          {/* Difficulty */}
           <span
             className={ns('badge')}
             style={{
@@ -81,7 +76,6 @@ export const QuestionCard = memo(function QuestionCard({
             {DIFFICULTY_LABELS[q.difficulty]}
           </span>
 
-          {/* Status badge */}
           {status !== 'unlearned' && (
             <span
               className={ns('badge')}
@@ -95,7 +89,6 @@ export const QuestionCard = memo(function QuestionCard({
             </span>
           )}
 
-          {/* Starred badge */}
           {starred && (
             <span className={ns('starredBadge')} title="重点题">
               <svg className={ns('starredIcon')} viewBox="0 0 24 24" fill="currentColor" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
@@ -105,7 +98,6 @@ export const QuestionCard = memo(function QuestionCard({
             </span>
           )}
 
-          {/* Note badge */}
           {hasNote && (
             <span className={ns('noteBadge')} title={noteSearchMatched ? '笔记内容匹配当前搜索' : '这道题有笔记'}>
               <svg className={ns('noteIcon')} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
@@ -117,7 +109,6 @@ export const QuestionCard = memo(function QuestionCard({
             </span>
           )}
 
-          {/* Tags (first 2 only) */}
           {q.tags.slice(0, 2).map((tag) => (
             <span key={tag} className={ns('tag')}>{tag}</span>
           ))}
@@ -138,7 +129,6 @@ export const QuestionCard = memo(function QuestionCard({
         )}
       </div>
 
-      {/* Arrow */}
       <svg className={ns('arrow')} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
         <polyline points="9 18 15 12 9 6" />
       </svg>

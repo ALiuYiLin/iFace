@@ -17,8 +17,8 @@ export default function QuestionList() {
   const ui = useQuestionListUI(base)
   const derived = useQuestionListDerived(base, ui)
 
-  const { navigate, allQuestions, getStatus, initializing } = base
-  const { filteredQuestions, visibleQuestions, availableModules, starredCount, noteCount, noteSearchMatchedIds, noteSearchSnippets, starredIds, noteIds } = derived
+  const { navigate, allQuestions, initializing } = base
+  const { filteredQuestions, visibleQuestions, availableModules, starredCount, noteCount, noteSearchMatchedIds, noteSearchSnippets } = derived
   const {
     keyword,
     setKeyword,
@@ -417,10 +417,7 @@ export default function QuestionList() {
                 <QuestionCard
                   key={q.id}
                   question={q}
-                  status={getStatus(q.id)}
                   index={i}
-                  starred={starredIds.has(q.id)}
-                  hasNote={noteIds.has(q.id)}
                   noteSearchMatched={noteSearchMatchedIds.has(q.id)}
                   noteSnippet={noteSearchSnippets.get(q.id)}
                 />

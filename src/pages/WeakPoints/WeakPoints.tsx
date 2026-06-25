@@ -1,7 +1,6 @@
-import { useCallback, useState } from 'react'
-import { Link, useNavigate } from 'react-router-dom'
+import { useCallback } from 'react'
+import { Link } from 'react-router-dom'
 import { Button, EmptyState } from '@/components/ui'
-import { createPracticeSessionPath } from '@/lib/practiceSession'
 import { useNameSpace } from '@/utils'
 import {
   WeakQuestionRow,
@@ -9,44 +8,26 @@ import {
   WeakStats,
   WeakSkeleton,
 } from '@/business/components/weak-points'
-import { useWeakPointsBase, useWeakPointsDerived } from '@/business/hooks/weak-points'
-import type { Module } from '@/types'
+import { useWeakPointsBase, useWeakPointsDerived, useWeakPointsUI, SORT_OPTIONS } from '@/business/hooks/weak-points'
+import type { SortMode } from '@/business/hooks/weak-points'
 import styles from './WeakPoints.module.css'
 
 const ns = useNameSpace(styles)
 
-type SortMode = 'oldest' | 'newest' | 'most-reviewed' | 'difficulty'
-
-const SORT_OPTIONS: { value: SortMode; label: string }[] = [
-  { value: 'oldest', label: '最久未复习' },
-  { value: 'newest', label: '最近标记' },
-  { value: 'most-reviewed', label: '复习次数最多' },
-  { value: 'difficulty', label: '难度从高到低' },
-]
-
 export default function WeakPoints() {
-  const navigate = useNavigate()
   const base = useWeakPointsBase()
-  const [selectedModule, setSelectedModule] = useState<Module | null>(null)
-  const [sortMode, setSortMode] = useState<SortMode>('oldest')
-  const [clearing, setClearing] = useState<string | null>(null)
-  const derived = useWeakPointsDerived(base, selectedModule, sortMode)
+  const ui = useWeakPointsUI()
+  const derived = useWeakPointsDerived(base, ui.selectedModule, ui.sortMode)
 
   const { stats, weakItems, displayItems, weakByModule, sessionIds } = derived
 
   const handleStartSession = useCallback(() => {
-    if (sessionIds.length === 0) return
-    navigate(createPracticeSessionPath(sessionIds[0], sessionIds))
-  }, [navigate, sessionIds])
+    ui.handleStartSession(sessionIds)
+  }, [ui, sessionIds])
 
-  const handleMarkAllMastered = useCallback(async () => {
-    if (displayItems.length === 0) return
-    setClearing('all')
-    for (const { question: q } of displayItems) {
-      await base.setStatus(q.id, 'mastered')
-    }
-    setClearing(null)
-  }, [base, displayItems])
+  const handleMarkAllMastered = useCallback(() => {
+    ui.handleMarkAllMastered(displayItems, base.setStatus)
+  }, [ui, displayItems, base])
 
   if (base.initializing) {
     return (
@@ -106,12 +87,12 @@ export default function WeakPoints() {
           </div>
 
           <div className="animate-fade-in stagger-2">
-            <ModuleBreakdown weakByModule={weakByModule} selectedModule={selectedModule} onSelect={setSelectedModule} />
+            <ModuleBreakdown weakByModule={weakByModule} selectedModule={ui.selectedModule} onSelect={ui.setSelectedModule} />
           </div>
 
           <div className={`${ns('controls')} animate-fade-in stagger-3`}>
             <div className={ns('controlsLeft')}>
-              <select value={sortMode} onChange={(e) => setSortMode(e.target.value as SortMode)} className={ns('select')}>
+              <select value={ui.sortMode} onChange={(e) => ui.setSortMode(e.target.value as SortMode)} className={ns('select')}>
                 {SORT_OPTIONS.map((o) => (
                   <option key={o.value} value={o.value}>{o.label}</option>
                 ))}
@@ -119,7 +100,7 @@ export default function WeakPoints() {
               <span className={ns('count')}>{displayItems.length} 道题</span>
             </div>
             <Button
-              variant="ghost" size="sm" loading={clearing === 'all'} onClick={handleMarkAllMastered}
+              variant="ghost" size="sm" loading={ui.clearing === 'all'} onClick={handleMarkAllMastered}
               icon={<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polyline points="20 6 9 17 4 12" /></svg>}
             >
               全部标为已掌握
