@@ -1,6 +1,7 @@
 import { useMemo } from 'react'
 import { Link } from 'react-router-dom'
 import { Button } from '@/components/ui'
+import { IconPlay } from '@/components/icon'
 import { DIFFICULTY_LABELS } from '@/types'
 import type { Module } from '@/types'
 import { useAppSelector } from '@/store/hooks'
@@ -107,11 +108,7 @@ export function StudyPlanCard({
               <Button
                 variant="primary"
                 size="sm"
-                icon={
-                  <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round">
-                    <polygon points="5 3 19 12 5 21 5 3" />
-                  </svg>
-                }
+                icon={<IconPlay />}
               >
                 {dailyIds.length > 0 ? `开始今日 ${dailyIds.length} 题` : '开始练习'}
               </Button>

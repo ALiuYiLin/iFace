@@ -1,4 +1,5 @@
 import { DIFFICULTY_LABELS, STATUS_LABELS, type Difficulty, type Module, type StudyStatus } from '@/types'
+import { IconPlay } from '@/components/icon'
 import { Button } from '@/components/ui'
 import { useNameSpace } from '@/utils'
 import styles from './SessionPreview.module.css'
@@ -66,7 +67,7 @@ export function SessionPreview({
         <p className={ns('empty')}>没有符合条件的题目</p>
       ) : (
         <Button variant="primary" size="lg" fullWidth onClick={onStart}
-          icon={<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polygon points="5 3 19 12 5 21 5 3" /></svg>}
+          icon={<IconPlay />}
         >
           开始练习 {count} 道题
         </Button>

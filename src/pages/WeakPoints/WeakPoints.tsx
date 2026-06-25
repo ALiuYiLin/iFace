@@ -1,6 +1,7 @@
 import { useCallback } from 'react'
 import { Link } from 'react-router-dom'
 import { Button, EmptyState } from '@/components/ui'
+import { IconCheck, IconPlay } from '@/components/icon'
 import { useNameSpace } from '@/utils'
 import {
   WeakQuestionRow,
@@ -54,11 +55,7 @@ export default function WeakPoints() {
               variant="primary"
               size="sm"
               onClick={handleStartSession}
-              icon={
-                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
-                  <polygon points="5 3 19 12 5 21 5 3" />
-                </svg>
-              }
+              icon={<IconPlay />}
               className="px-2!"
             >
               集中攻克
@@ -101,7 +98,7 @@ export default function WeakPoints() {
             </div>
             <Button
               variant="ghost" size="sm" loading={ui.clearing === 'all'} onClick={handleMarkAllMastered}
-              icon={<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polyline points="20 6 9 17 4 12" /></svg>}
+              icon={<IconCheck />}
             >
               全部标为已掌握
             </Button>

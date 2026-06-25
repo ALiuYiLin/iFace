@@ -1,3 +1,4 @@
+import { IconCheck, IconNote, IconStar } from '@/components/icon'
 import { useNameSpace } from '@/utils'
 import {
   BUILTIN_MODULE_CATEGORY,
@@ -59,25 +60,9 @@ export function FilterPanel({
     starredOnly ||
     notesOnly
 
-  const renderCheckIcon = () => (
-    <svg className={ns('checkIcon')} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round">
-      <polyline points="20 6 9 17 4 12" />
-    </svg>
-  )
-
-  const renderStarIcon = (filled: boolean) => (
-    <svg className={ns('reviewIcon')} viewBox="0 0 24 24" fill={filled ? 'currentColor' : 'none'} stroke="currentColor" strokeWidth="2.1" strokeLinecap="round" strokeLinejoin="round">
-      <polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2" />
-    </svg>
-  )
-
-  const renderNoteIcon = () => (
-    <svg className={ns('reviewIcon')} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
-      <path d="M4 19.5V5a2 2 0 0 1 2-2h12v18H6a2 2 0 0 1-2-1.5z" />
-      <path d="M8 7h6" />
-      <path d="M8 11h8" />
-    </svg>
-  )
+  const renderCheckIcon = () => <IconCheck className={ns('checkIcon')} />
+  const renderStarIcon = (filled: boolean) => <IconStar className={ns('reviewIcon')} fill={filled} />
+  const renderNoteIcon = () => <IconNote className={ns('reviewIcon')} />
 
   return (
     <aside className={ns('panel')}>

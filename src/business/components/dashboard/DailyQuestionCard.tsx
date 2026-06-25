@@ -1,4 +1,5 @@
 import { Link } from 'react-router-dom'
+import { IconChevronRight } from '@/components/icon'
 import { useAppSelector } from '@/store/hooks'
 import { useNameSpace } from '@/utils'
 import { DIFFICULTY_LABELS } from '@/types'
@@ -58,9 +59,7 @@ export function DailyQuestionCard({ questionId, index }: { questionId: string; i
         </div>
       </div>
 
-      <svg className={ns('arrow')} width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-        <polyline points="9 18 15 12 9 6" />
-      </svg>
+      <IconChevronRight className={ns('arrow')} />
     </Link>
   )
 }

@@ -1,5 +1,6 @@
 import { memo } from 'react'
 import { Link } from 'react-router-dom'
+import { IconChevronRight, IconNote, IconStar } from '@/components/icon'
 import { useNameSpace } from '@/utils'
 import { useAppSelector } from '@/store/hooks'
 import { preloadRoute } from '@/lib/routePreload'
@@ -91,20 +92,14 @@ export const QuestionCard = memo(function QuestionCard({
 
           {starred && (
             <span className={ns('starredBadge')} title="重点题">
-              <svg className={ns('starredIcon')} viewBox="0 0 24 24" fill="currentColor" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
-                <polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2" />
-              </svg>
+              <IconStar className={ns('starredIcon')} fill />
               重点
             </span>
           )}
 
           {hasNote && (
             <span className={ns('noteBadge')} title={noteSearchMatched ? '笔记内容匹配当前搜索' : '这道题有笔记'}>
-              <svg className={ns('noteIcon')} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
-                <path d="M4 19.5V5a2 2 0 0 1 2-2h12v18H6a2 2 0 0 1-2-1.5z" />
-                <path d="M8 7h6" />
-                <path d="M8 11h8" />
-              </svg>
+              <IconNote className={ns('noteIcon')} />
               {noteSearchMatched ? '命中笔记' : '笔记'}
             </span>
           )}
@@ -129,9 +124,7 @@ export const QuestionCard = memo(function QuestionCard({
         )}
       </div>
 
-      <svg className={ns('arrow')} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-        <polyline points="9 18 15 12 9 6" />
-      </svg>
+      <IconChevronRight className={ns('arrow')} />
     </Link>
   )
 })
