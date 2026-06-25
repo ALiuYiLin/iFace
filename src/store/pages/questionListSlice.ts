@@ -1,6 +1,6 @@
 import { createSlice, createAsyncThunk } from '@reduxjs/toolkit'
 import { getCategories, getQuestionFlags, getQuestionNotes, getQuestions } from '@/api'
-import type { CategoryMap, Question, QuestionFlag, QuestionNote } from '@/api'
+import type { CategoryMap, Question, QuestionNote } from '@/api'
 
 export interface QuestionListState {
   allQuestions: Question[]

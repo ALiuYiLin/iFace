@@ -19,8 +19,6 @@ export interface SettingDrawerDerivedData {
 
 export function useSettingDrawerDerived(
   localConfig: AIConfig,
-  customModel: string,
-  customBaseUrl: string,
   setCustomModel: (v: string) => void,
   setCustomBaseUrl: (v: string) => void,
 ): SettingDrawerDerivedData {

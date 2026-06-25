@@ -1,6 +1,6 @@
 import { createSlice, createAsyncThunk, type PayloadAction } from '@reduxjs/toolkit'
 import { getStudyRecords, putStudyRecord as apiPutStudyRecord, deleteStudyRecord as apiDeleteStudyRecord, clearStudyRecords } from '@/api'
-import type { StudyRecord, StudyRecordMap, StudyStatus } from '@/types'
+import type { StudyRecordMap, StudyStatus } from '@/types'
 import type { StreakData, StudyMode, AnswerNavigationMode } from '@/store/useStudyStore'
 import { DAILY_GOAL_DEFAULT, DAILY_GOAL_MIN, DAILY_GOAL_MAX } from '@/store/useStudyStore'
 

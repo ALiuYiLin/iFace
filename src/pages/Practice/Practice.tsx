@@ -1,10 +1,10 @@
-import { useCallback, useMemo } from 'react'
+import { useCallback } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { Button, EmptyState, Skeleton } from '@/components/ui'
 import { useNameSpace } from '@/utils'
 import { ModuleCard, DifficultyChip, StatusChip, SessionPreview } from '@/business/components/practice'
 import { usePracticeBase, usePracticeDerived, usePracticeUI } from '@/business/hooks/practice'
-import type { Difficulty, Module, StudyStatus } from '@/types'
+import type { Difficulty, Module } from '@/types'
 import styles from './Practice.module.css'
 
 const ns = useNameSpace(styles)

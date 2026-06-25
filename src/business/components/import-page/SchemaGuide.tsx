@@ -75,7 +75,7 @@ export function SchemaGuide() {
                   ['answer', 'string (Markdown)', '必填', '参考答案，支持 Markdown'],
                   ['tags', 'string[]', '必填', '标签数组（可为空数组）'],
                   ['source', 'string', '可选', '来源标注，如"高频" "字节"'],
-                ] as const).map(([field, type, required, desc], i) => (
+                ] as const).map(([field, type, required, desc], _i) => (
                   <tr key={field} className={ns('tableRow')}>
                     <td className={ns('cellCode')}>{field}</td>
                     <td className={ns('cellType')}>{type}</td>

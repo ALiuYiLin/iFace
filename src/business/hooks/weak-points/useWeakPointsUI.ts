@@ -1,8 +1,7 @@
 import { useCallback, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { createPracticeSessionPath } from '@/lib/practiceSession'
-import type { Module } from '@/types'
-import type { WeakPointsBaseData } from './useWeakPointsBase'
+import type { Module, StudyStatus } from '@/types'
 
 export type SortMode = 'oldest' | 'newest' | 'most-reviewed' | 'difficulty'
 
@@ -20,7 +19,7 @@ export interface WeakPointsUIState {
   setSelectedModule: (m: Module | null) => void
   setSortMode: (m: SortMode) => void
   handleStartSession: (sessionIds: string[]) => void
-  handleMarkAllMastered: (displayItems: { question: { id: string } }[], setStatus: (id: string, status: string) => Promise<void>) => Promise<void>
+  handleMarkAllMastered: (displayItems: { question: { id: string } }[], setStatus: (id: string, status: StudyStatus) => Promise<void>) => Promise<void>
 }
 
 export function useWeakPointsUI(): WeakPointsUIState {
@@ -40,7 +39,7 @@ export function useWeakPointsUI(): WeakPointsUIState {
   const handleMarkAllMastered = useCallback(
     async (
       displayItems: { question: { id: string } }[],
-      setStatus: (id: string, status: string) => Promise<void>,
+      setStatus: (id: string, status: StudyStatus) => Promise<void>,
     ) => {
       if (displayItems.length === 0) return
       setClearing('all')

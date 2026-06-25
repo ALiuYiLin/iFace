@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { useNavigate, useSearchParams } from 'react-router-dom'
+import { filterVisibleQuestions, getHiddenModules } from '@/lib/questionVisibility'
 import { createPracticeSessionPath } from '@/lib/practiceSession'
 import type { Difficulty, Module, StudyStatus } from '@/types'
 import type { PracticeBaseData } from './usePracticeBase'
@@ -26,7 +27,13 @@ export function usePracticeUI(base: PracticeBaseData): PracticeUIState {
   const [selectedStatus, setSelectedStatus] = useState<StudyStatus | 'all'>('all')
   const [isShuffled, setIsShuffled] = useState(false)
 
-  const { visibleQuestions } = base
+  const { allQuestions, categoryMap, hiddenCategories } = base
+
+  // Compute visibleQuestions for module cleanup
+  const visibleQuestions = useMemo(() => {
+    const hiddenModules = getHiddenModules(categoryMap, hiddenCategories)
+    return filterVisibleQuestions(allQuestions, hiddenModules)
+  }, [allQuestions, categoryMap, hiddenCategories])
 
   // Handle preset from URL params
   useEffect(() => {

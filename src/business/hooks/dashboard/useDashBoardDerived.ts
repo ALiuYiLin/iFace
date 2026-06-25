@@ -73,11 +73,11 @@ export function useDashBoardDerived(base: DashBoardBaseData): DashBoardDerivedDa
   const recentNoteItems = useMemo(() => {
     const questionMap = new Map(visibleQuestions.map((q) => [q.id, q]))
     return questionNotes
-      .filter((note) => note.content.trim().length > 0 && questionMap.has(note.questionId))
-      .sort((a, b) => b.updatedAt - a.updatedAt)
+      .filter((note) => note.content.trim().length > 0 && questionMap.has(note.question_id))
+      .sort((a, b) => b.updated_at - a.updated_at)
       .map((note) => ({
         note,
-        question: questionMap.get(note.questionId)!,
+        question: questionMap.get(note.question_id)!,
       }))
   }, [questionNotes, visibleQuestions])
 

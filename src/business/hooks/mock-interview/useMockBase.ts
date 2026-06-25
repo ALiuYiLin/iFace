@@ -14,7 +14,7 @@ export function useMockBase(options?: { onFinalTranscript?: (text: string) => vo
 
   const loadSessions = useCallback(async () => {
     const loaded = await getMockInterviews()
-    setSessions(loaded)
+    setSessions(loaded as MockInterviewSession[])
   }, [])
 
   useEffect(() => {

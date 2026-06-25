@@ -1,6 +1,5 @@
 import { createSlice, createAsyncThunk } from '@reduxjs/toolkit'
 import { getQuestion, getQuestions } from '@/api'
-import { readPracticeSession } from '@/lib/practiceSession'
 import type { Question } from '@/api'
 
 export interface QuestionDetailState {

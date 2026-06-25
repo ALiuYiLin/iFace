@@ -71,8 +71,10 @@ export function OnboardingGuide() {
 
   const categories = useMemo(
     () => Object.entries(categoryMap).sort(([, a], [, b]) => {
-      if (a.builtin !== b.builtin) return a.builtin ? -1 : 1
-      return (a.order ?? 99) - (b.order ?? 99)
+      const ca = a as { builtin: boolean; order?: number }
+      const cb = b as { builtin: boolean; order?: number }
+      if (ca.builtin !== cb.builtin) return ca.builtin ? -1 : 1
+      return (ca.order ?? 99) - (cb.order ?? 99)
     }),
     [categoryMap],
   )
@@ -173,7 +175,7 @@ export function OnboardingGuide() {
                     <Button size="sm" variant="secondary" onClick={setAllCategoriesVisible}>全部显示</Button>
                     {categories.slice(0, 4).map(([key, category]) => (
                       <Button key={key} size="sm" variant="ghost" onClick={() => setOnlyCategoryVisible(key)}>
-                        只看{category.name}
+                        只看{(category as { name: string }).name}
                       </Button>
                     ))}
                   </div>
@@ -186,13 +188,13 @@ export function OnboardingGuide() {
                         <button key={key} type="button" data-enabled={enabled}
                           onClick={() => toggleCategory(key)} className={ns('bankCard')}>
                           <span className={ns('bankCardTop')}>
-                            <span className={ns('bankName')}>{category.name}</span>
+                            <span className={ns('bankName')}>{(category as { name: string }).name}</span>
                             <span className={ns('bankToggle')}>
                               <span className={ns('bankToggleKnob')} />
                             </span>
                           </span>
                           <span className={ns('bankModules')}>
-                            {category.modules.length} 个模块{fileCount > 0 ? ` · ${fileCount} 个文件` : ''}
+                            {(category as { modules: string[] }).modules.length} 个模块{fileCount > 0 ? ` · ${fileCount} 个文件` : ''}
                           </span>
                           <span className={ns('bankStatus')}>{enabled ? '显示中' : '已隐藏'}</span>
                         </button>

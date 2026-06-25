@@ -2,7 +2,7 @@ import { Link } from 'react-router-dom'
 import { useAppSelector } from '@/store/hooks'
 import { useNameSpace } from '@/utils'
 import { DIFFICULTY_LABELS } from '@/types'
-import type { Module, StudyStatus } from '@/types'
+import type { StudyStatus } from '@/types'
 import styles from './DailyQuestionCard.module.css'
 
 const ns = useNameSpace(styles)

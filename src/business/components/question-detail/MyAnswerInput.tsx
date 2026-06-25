@@ -2,9 +2,10 @@ import { useCallback, useEffect, useRef, useState } from 'react'
 import { MarkdownRenderer } from '@/components/ui/LazyMarkdownRenderer'
 import { SpeechInputButton } from '@/components/ui/SpeechInputButton'
 import { useSpeechRecognition } from '@/hooks/useSpeechRecognition'
+import { requestChatCompletionStream } from '@/lib/aiClient'
 import { appendQuestionNoteContent } from '@/api/compat'
 import { buildReviewNoteMarkdown } from '@/lib/feedbackNote'
-import { buildAnswerFeedbackContext, buildAnswerFeedbackSystemSuffix, useAIStore } from '@/store/useAIStore'
+import { buildAnswerFeedbackSystemSuffix, useAIStore } from '@/store/useAIStore'
 import { useNameSpace } from '@/utils'
 import { FeedbackScorePanel, splitFeedbackScore } from './FeedbackScorePanel'
 import styles from './MyAnswerInput.module.css'
@@ -70,12 +71,13 @@ export function MyAnswerInput({
   compact = false,
   autoFocus = true,
 }: MyAnswerInputProps) {
-  const { sendMessage, streaming, streamingQuestionId } = useAIStore()
+  const { config, streaming, streamingQuestionId } = useAIStore()
 
   const [collapsed, setCollapsed] = useState(false)
   const [text, setText] = useState(() => loadMyAnswerDraft(questionId))
   const [feedback, setFeedback] = useState<string | null>(null)
   const [streamingFeedback, setStreamingFeedback] = useState('')
+  const feedbackRef = useRef('')
   const [error, setError] = useState<string | null>(null)
   const [savingNote, setSavingNote] = useState(false)
   const [noteSaved, setNoteSaved] = useState(false)
@@ -124,29 +126,40 @@ export function MyAnswerInput({
     setError(null)
     setStreamingFeedback('')
 
-    const contextMessages = buildAnswerFeedbackContext({
-      questionText,
-      referenceAnswer: answerText,
-      userAnswer: text.trim(),
-    })
-
-    await sendMessage(
-      `${questionId}_selfcheck`,
-      '请批改我的作答，并给出一版更适合面试口述的修正版。',
-      contextMessages,
-      buildAnswerFeedbackSystemSuffix(),
-      (chunk) => setStreamingFeedback((prev) => prev + chunk),
-      (full) => {
-        setFeedback(full)
-        setStreamingFeedback('')
-        saveMyAnswerDraft(questionId, '')
-      },
-      (err) => {
-        setError(err)
-        setStreamingFeedback('')
-      },
-    )
-  }, [text, isStreaming, speech.stop, questionId, questionText, answerText, sendMessage])
+    
+    const systemSuffix = buildAnswerFeedbackSystemSuffix()
+    const userInput: import("@/lib/aiClient").ChatCompletionMessage = {
+      role: 'user' as const,
+      content: `题目：${questionText}\n参考答案：${answerText}\n候选人的回答：${text.trim()}`,
+    }
+    const allMessages: import("@/lib/aiClient").ChatCompletionMessage[] = [
+      { role: 'system' as const, content: `${config.systemPrompt}\n\n${systemSuffix}` },
+      userInput,
+      { role: 'user' as const, content: '请批改我的作答，并给出一版更适合面试口述的修正版。' },
+    ]
+    try {
+      await requestChatCompletionStream({
+        config: {
+          apiKey: config.apiKey,
+          baseUrl: config.baseUrl,
+          model: config.model,
+          temperature: config.temperature,
+          maxTokens: config.maxTokens,
+          provider: config.provider,
+        },
+        messages: allMessages,
+        onDelta: (chunk: string) => { feedbackRef.current += chunk; setStreamingFeedback((prev) => prev + chunk) },
+        signal: new AbortController().signal,
+      })
+      const fullText = feedbackRef.current
+setFeedback(fullText)
+setStreamingFeedback('')
+saveMyAnswerDraft(questionId, '')
+    } catch (err: any) {
+      setError(err.message ?? '请求失败')
+      setStreamingFeedback('')
+    }
+  }, [text, isStreaming, speech.stop, questionId, questionText, answerText, config])
 
   const handleKeyDown = useCallback(
     (e: React.KeyboardEvent<HTMLTextAreaElement>) => {

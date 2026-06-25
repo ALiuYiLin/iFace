@@ -38,7 +38,7 @@ export const QuestionCard = memo(function QuestionCard({
   const status = useAppSelector((s) => s.study.records[q.id]?.status ?? 'unlearned')
   const starred = useAppSelector((s) => s.questionList.starredIds.includes(q.id))
   const hasNote = useAppSelector((s) =>
-    s.questionList.questionNotes.some((n) => n.questionId === q.id && n.content.trim().length > 0),
+    s.questionList.questionNotes.some((n) => n.question_id === q.id && n.content.trim().length > 0),
   )
 
   const statusClass =

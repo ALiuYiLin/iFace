@@ -92,7 +92,6 @@ export function useQuestionDetailUI(params: {
 
     setAnswerEditMode,
     setAnswerDraft,
-    setAnswerSaveStatus,
     handleStartAnswerEdit,
     handleCancelAnswerEdit,
     handleRestoreDefaultAnswer,

@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react'
+import { useMemo } from 'react'
 import { filterVisibleQuestions, getHiddenModules } from '@/lib/questionVisibility'
 import type { Difficulty, Module, StudyStatus } from '@/types'
 import type { PracticeBaseData } from './usePracticeBase'

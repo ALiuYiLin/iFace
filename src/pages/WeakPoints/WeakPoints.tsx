@@ -93,7 +93,7 @@ export default function WeakPoints() {
           <div className={`${ns('controls')} animate-fade-in stagger-3`}>
             <div className={ns('controlsLeft')}>
               <select value={ui.sortMode} onChange={(e) => ui.setSortMode(e.target.value as SortMode)} className={ns('select')}>
-                {SORT_OPTIONS.map((o) => (
+                {SORT_OPTIONS.map((o: { value: string; label: string }) => (
                   <option key={o.value} value={o.value}>{o.label}</option>
                 ))}
               </select>
@@ -109,7 +109,14 @@ export default function WeakPoints() {
 
           <div className={ns('list')}>
             {displayItems.map(({ question: q, record: r }, i) => (
-              <WeakQuestionRow key={q.id} question={q} lastUpdated={r.lastUpdated} reviewCount={r.reviewCount} index={i} sessionIds={sessionIds} />
+              <WeakQuestionRow
+                key={q.id}
+                question={q as { id: string; module: import('@/types').Module; difficulty: import('@/types').Difficulty; question: string; tags: string[]; source?: string }}
+                lastUpdated={r.lastUpdated}
+                reviewCount={r.reviewCount}
+                index={i}
+                sessionIds={sessionIds}
+              />
             ))}
           </div>
 

@@ -451,7 +451,6 @@ export default function QuestionDetail() {
           open={ui.aiDrawerOpen}
           onClose={() => ui.setAiDrawerOpen(false)}
           question={ui.answerContextQuestion}
-          answerVisible={ui.answerVisible}
           initialPrompt={ui.aiInitialPrompt}
           onInitialPromptConsumed={ui.handleAIInitialPromptConsumed}
           onOpenSettings={() => { ui.setAiDrawerOpen(false); ui.setSettingsOpen(true) }}

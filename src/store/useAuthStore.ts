@@ -28,15 +28,6 @@ function clearToken(): void {
   try { localStorage.removeItem(TOKEN_KEY) } catch {}
 }
 
-async function fetchGitHubUser(token: string): Promise<GitHubUser> {
-  const res = await fetch('https://api.github.com/user', {
-    headers: { Authorization: `Bearer ${token}`, Accept: 'application/vnd.github+json', 'X-GitHub-Api-Version': '2022-11-28' },
-  })
-  if (!res.ok) throw new Error(`GitHub API ${res.status}: ${res.statusText}`)
-  const data = await res.json()
-  return { login: data.login, name: data.name ?? null, avatar_url: data.avatar_url, html_url: data.html_url }
-}
-
 export function buildGitHubOAuthUrl(): string {
   const clientId = import.meta.env.VITE_GITHUB_CLIENT_ID
   if (!clientId) throw new Error('VITE_GITHUB_CLIENT_ID is not set')

@@ -275,7 +275,7 @@ export { bulkPutQuestions as bulkPutQuestionsCompat }
 
 export async function bulkPutStudyRecords(records: { questionId: string; status: string; lastUpdated: number; reviewCount: number }[]) {
   const { bulkPutStudyRecords: fn } = await import('@/api/studyRecords')
-  return fn(records.map(r => ({ question_id: r.questionId, status: r.status, last_updated: r.lastUpdated, review_count: r.reviewCount, created_at: r.lastUpdated })))
+  return fn(records.map(r => ({ question_id: r.questionId, status: r.status, last_updated: r.lastUpdated, review_count: r.reviewCount, created_at: r.lastUpdated })) as any)
 }
 
 export async function bulkPutJdMatchReports(reports: unknown[]) {
@@ -326,7 +326,7 @@ export const META_KEYS = {
   CATEGORY_MAP: 'category_map',
 } as const
 
-export type { CategoryMap }
+export type { CategoryMap } from './types'
 
 export async function setMeta(key: string, value: unknown) {
   const { setMeta: apiSetMeta } = await import('@/api/meta')

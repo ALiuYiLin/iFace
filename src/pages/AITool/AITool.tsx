@@ -253,7 +253,6 @@ export default function AITool() {
     generating,
     error,
     settingsOpen,
-    missingRequired,
     aiReady,
     handleChange,
     handleGenerate,
@@ -296,7 +295,7 @@ export default function AITool() {
             <div className={ns('panelHeader')}>
               <h2>输入材料</h2>
               <Badge variant={aiReady ? 'success' : 'warning'}>
-                {aiReady ? tool.config.model : 'AI 未配置'}
+                {aiReady ? base.config.model : 'AI 未配置'}
               </Badge>
             </div>
 

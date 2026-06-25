@@ -17,7 +17,7 @@ export default function QuestionList() {
   const ui = useQuestionListUI(base)
   const derived = useQuestionListDerived(base, ui)
 
-  const { navigate, allQuestions, initializing } = base
+  const { allQuestions, initializing } = base
   const { filteredQuestions, visibleQuestions, availableModules, starredCount, noteCount, noteSearchMatchedIds, noteSearchSnippets } = derived
   const {
     keyword,

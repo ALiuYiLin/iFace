@@ -18,16 +18,6 @@ const REPORT_SECTION_TITLES = new Set([
   '准备建议',
 ])
 
-function formatDateTime(timestamp?: number): string {
-  if (!timestamp) return '未保存'
-  return new Intl.DateTimeFormat('zh-CN', {
-    month: '2-digit',
-    day: '2-digit',
-    hour: '2-digit',
-    minute: '2-digit',
-  }).format(timestamp)
-}
-
 function extractGeneratedTitle(markdown: string, roleTitle: string): string {
   const titleLine = markdown.split('\n').find(isGeneratedTitleLine)
   const title = titleLine ? normalizeGeneratedTitle(titleLine) : ''
@@ -135,7 +125,7 @@ export function useJdMatchUI(base: JdMatchBaseData) {
 
   const loadReports = useCallback(async () => {
     const loaded = await getJdMatchReports()
-    setSavedReports(loaded)
+    setSavedReports(loaded as JdMatchReport[])
   }, [])
 
   useEffect(() => { loadReports() }, [loadReports])

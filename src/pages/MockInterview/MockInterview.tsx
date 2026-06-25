@@ -42,7 +42,6 @@ export default function MockInterview() {
     config,
     aiReady,
     sessions,
-    questions,
     speech,
     /* UI state */
     form,
@@ -55,7 +54,6 @@ export default function MockInterview() {
     settingsOpen,
     setSettingsOpen,
     parsingResume,
-    setupCollapsed,
     setSetupCollapsed,
     streamingText,
     /* computed */

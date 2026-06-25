@@ -6,7 +6,10 @@
       "Bash(pnpm approve-builds:*)",
       "Bash(pnpm rebuild:*)",
       "Bash(rm -f pnpm-lock.yaml)",
-      "Bash(rm -rf node_modules backend/node_modules)"
+      "Bash(rm -rf node_modules backend/node_modules)",
+      "PowerShell(python 'E:\\\\code3\\\\iFace\\\\fix_ts_errors.py')",
+      "PowerShell(python 'E:\\\\code3\\\\iFace\\\\fix_ts_v2.py')",
+      "PowerShell(python 'E:\\\\code3\\\\iFace\\\\fix_remaining.py')"
     ]
   },
   "enabledPlugins": {

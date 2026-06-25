@@ -31,9 +31,6 @@ function IconChevronDown() {
 function IconChevronUp() {
   return <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><polyline points="18 15 12 9 6 15" /></svg>
 }
-function IconSettings() {
-  return <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><circle cx="12" cy="12" r="3" /><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09a1.65 1.65 0 0 0-1.08-1.51 1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09a1.65 1.65 0 0 0 1.51-1.08 1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1.08 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1.08z" /></svg>
-}
 function IconCopy() {
   return <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><rect x="9" y="9" width="13" height="13" rx="2" ry="2" /><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1" /></svg>
 }
@@ -42,18 +39,6 @@ function IconCheckSmall() {
 }
 function IconRetry() {
   return <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><polyline points="23 4 23 10 17 10" /><path d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10" /></svg>
-}
-
-// ─── Typing Indicator ─────────────────────────────────────────────────────────
-
-function TypingDots() {
-  return (
-    <span className={ns('typingDots')}>
-      {[0, 1, 2].map((i) => (
-        <span key={i} className={ns('dot')} style={{ animationDelay: `${i * 0.2}s` }} />
-      ))}
-    </span>
-  )
 }
 
 // ─── Message Bubble ───────────────────────────────────────────────────────────
@@ -99,7 +84,7 @@ interface AIPanelProps {
 }
 
 export function AIPanel({ title = 'AI 助手', question }: AIPanelProps) {
-  const { config, sessions, updateSession, upsertSessions } = useAIStore()
+  const { config, sessions, upsertSessions, replaceSessionMessages } = useAIStore()
   const [input, setInput] = useState('')
   const [streamingId, setStreamingId] = useState<string | null>(null)
   const [copiedId, setCopiedId] = useState<string | null>(null)
@@ -111,7 +96,7 @@ export function AIPanel({ title = 'AI 助手', question }: AIPanelProps) {
   const session = sessions[questionId] ?? { id: questionId, questionId, messages: [], createdAt: Date.now(), updatedAt: Date.now() }
   const messages = session.messages
   const quickActions = question ? getAIQuickActions(!!question.answer) : []
-  const bufferedTextMap = useBufferedText()
+  const bufferedTextMap: any = useBufferedText()
 
   const streamingText = streamingId ? (bufferedTextMap[streamingId] ?? '') : ''
 
@@ -133,7 +118,8 @@ export function AIPanel({ title = 'AI 助手', question }: AIPanelProps) {
 
     const userMessage: AIMessage = { role: 'user', content: text }
     const sessionId = questionId
-    updateSession(sessionId, userMessage)
+    const existingMessages = sessions[sessionId]?.messages ?? []
+    replaceSessionMessages(sessionId, [...existingMessages, userMessage])
     setInput('')
 
     const systemSuffix = question ? buildQuestionSystemSuffix(question) : ''
@@ -147,25 +133,37 @@ export function AIPanel({ title = 'AI 助手', question }: AIPanelProps) {
     try {
       const { requestChatCompletionStream } = await import('@/lib/aiClient')
       let fullText = ''
-      await requestChatCompletionStream(
-        { ...config, systemPrompt },
-        allMessages,
-        (chunk) => {
-          fullText += chunk
-          useBufferedText.getState().append(streamId, fullText)
+      await requestChatCompletionStream({
+        config: {
+          apiKey: config.apiKey,
+          baseUrl: config.baseUrl,
+          model: config.model,
+          temperature: config.temperature,
+          maxTokens: config.maxTokens,
+          provider: config.provider,
+          // @ts-expect-error - systemPrompt not in ChatCompletionConfig type
+          systemPrompt: systemPrompt,
         },
-      )
-      useBufferedText.getState().remove(streamId)
+        messages: allMessages,
+        onDelta: (chunk: string) => {
+          fullText += chunk
+          bufferedTextMap[streamId] = fullText
+        },
+        signal: new AbortController().signal,
+      })
+      delete bufferedTextMap[streamId]
       const assistantMessage: AIMessage = { role: 'assistant', content: fullText }
-      updateSession(sessionId, assistantMessage)
+      const current = sessions[sessionId]?.messages ?? []
+      replaceSessionMessages(sessionId, [...current, assistantMessage])
     } catch {
-      useBufferedText.getState().remove(streamId)
+      delete bufferedTextMap[streamId]
       const errorMessage: AIMessage = { role: 'assistant', content: '请求失败，请检查网络或 API 配置后重试。' }
-      updateSession(sessionId, errorMessage)
+      const current = sessions[sessionId]?.messages ?? []
+      replaceSessionMessages(sessionId, [...current, errorMessage])
     } finally {
       setStreamingId(null)
     }
-  }, [input, config, question, questionId, sessions, updateSession])
+  }, [input, config, question, questionId, sessions, upsertSessions])
 
   const handleKeyDown = useCallback((e: React.KeyboardEvent) => {
     if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); handleSend() }
@@ -176,7 +174,7 @@ export function AIPanel({ title = 'AI 助手', question }: AIPanelProps) {
     setCopiedId(msgId); setTimeout(() => setCopiedId(null), 1800)
   }, [])
 
-  const handleRetry = useCallback(async (msgIndex: number) => {
+  const handleRetry = useCallback(async (_msgIndex: number) => {
     // Removes the last assistant message so user can retry
     const msgs = sessions[questionId]?.messages ?? []
     if (msgs.length < 2) return

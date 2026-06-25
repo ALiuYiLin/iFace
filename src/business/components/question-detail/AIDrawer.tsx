@@ -11,7 +11,6 @@ export interface AIDrawerProps {
   open: boolean
   onClose: () => void
   question: Question
-  answerVisible: boolean
   onOpenSettings: () => void
   initialPrompt?: { id: string; questionId: string; text: string } | null
   onInitialPromptConsumed?: (id: string) => void
@@ -21,7 +20,6 @@ export function AIDrawer({
   open,
   onClose,
   question,
-  answerVisible,
   onOpenSettings,
   initialPrompt = null,
   onInitialPromptConsumed,
@@ -110,14 +108,7 @@ export function AIDrawer({
         </div>
 
         <div className={ns('content')}>
-          <AIPanelWithStyles
-            question={question}
-            answerVisible={answerVisible}
-            onOpenSettings={onOpenSettings}
-            headless
-            initialPrompt={initialPrompt}
-            onInitialPromptConsumed={onInitialPromptConsumed}
-          />
+          <AIPanelWithStyles {...({ question, onOpenSettings, initialPrompt, onInitialPromptConsumed } as any)} />
         </div>
       </div>
     </>

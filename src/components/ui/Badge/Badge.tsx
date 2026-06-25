@@ -1,4 +1,4 @@
-import type { HTMLAttributes, ReactNode } from 'react'
+import type { HTMLAttributes } from 'react'
 import { useNameSpace } from '@/utils'
 import styles from './Badge.module.css'
 

@@ -231,7 +231,7 @@ export default function Dashboard() {
               counts={counts}
             />
 
-            <RecentNotesCard notes={recentNoteItems.slice(0, 4)} total={recentNoteItems.length} />
+            <RecentNotesCard notes={recentNoteItems.slice(0, 4) as any} total={recentNoteItems.length} />
           </div>
 
           {/* ── Today's Recommendations ── */}

@@ -186,39 +186,30 @@ export function useQuestionListUI(base: QuestionListBaseData): QuestionListUISta
       const nextNotesOnly = parseNotesOnlyParam(nextParams)
       const nextSearch = nextParams.get('q') ?? ''
       const nextSort = parseSortParam(nextParams)
-      let changed = false
 
       if (!areArraysEqual(selectedModules, nextModules)) {
         setSelectedModules(nextModules)
-        changed = true
       }
       if (!areArraysEqual(selectedDifficulties, nextDifficulties)) {
         setSelectedDifficulties(nextDifficulties)
-        changed = true
       }
       if (!areArraysEqual(selectedStatuses, nextStatuses)) {
         setSelectedStatuses(nextStatuses)
-        changed = true
       }
       if (notesOnly !== nextNotesOnly) {
         setNotesOnly(nextNotesOnly)
-        changed = true
       }
       if (starredOnly !== nextStarredOnly) {
         setStarredOnly(nextStarredOnly)
-        changed = true
       }
       if (keyword !== nextSearch) {
         setKeyword(nextSearch)
-        changed = true
       }
       if (debouncedKeyword !== nextSearch) {
         setDebouncedKeyword(nextSearch)
-        changed = true
       }
       if (sort !== nextSort) {
         setSort(nextSort)
-        changed = true
       }
       lastSyncedSearchRef.current = currentSearch
       return

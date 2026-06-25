@@ -28,7 +28,6 @@ import {
   setMeta,
 } from '@/api/compat'
 import type { SyncResult } from '@/lib/gistSync'
-import { deleteBackupGist, pullFromGist, pushToGist } from '@/lib/gistSync'
 import {
   countMergedAISessions,
   type ImportImpactItem,
@@ -250,25 +249,8 @@ function formatRemoteMergeSummary(result: SyncResult): string {
 export function useSettingDrawerBase(open: boolean, onClose: () => void): SettingDrawerBaseData {
   const { config, sessions, updateConfig, resetConfig, clearAllSessions, upsertSessions } =
     useAIStore()
-  const {
-    resetAll,
-    studyMode,
-    setStudyMode,
-    answerNavigationMode,
-    setAnswerNavigationMode,
-    mobileQuestionNavEnabled,
-    setMobileQuestionNavEnabled,
-    aiFabVisible,
-    setAiFabVisible,
-    streak,
-    resetStreak,
-    dailyGoal,
-    setDailyGoal,
-    hiddenCategories,
-    toggleCategoryVisibility,
-  } = useStudyStore()
-  const { token, user, isLoggedIn, loading: authLoading, login, logout } = useAuthStore()
-
+  const { resetAll } = useStudyStore()
+  const { token, isLoggedIn } = useAuthStore()
   const [tab, setTab] = useState<SettingDrawerTab>('ai')
   const [localConfig, setLocalConfig] = useState<AIConfig>({ ...config })
   const [customModel, setCustomModel] = useState('')
@@ -354,7 +336,8 @@ export function useSettingDrawerBase(open: boolean, onClose: () => void): Settin
     ;(async () => {
       setAutoSynced(true)
       try {
-        const result = await pullFromGist(token, Object.values(sessions))
+        const { pullFromGist: pullFn } = await import("@/lib/gistSync")
+        const result = await pullFn(token, Object.values(sessions))
         if (result === null) return
         if (result.ok) {
           invalidateQuestionsCache()

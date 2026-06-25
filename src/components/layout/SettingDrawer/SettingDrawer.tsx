@@ -7,9 +7,6 @@ import { BUILTIN_CATEGORIES } from '@/lib/fileUtils'
 import {
   AI_PROVIDER_PRESETS,
   type AIProviderId,
-  type AIConfig,
-  type AIModelPreset,
-  DEFAULT_AI_CONFIG,
   DEFAULT_SYSTEM_PROMPT,
   getAIProviderPreset,
   useAIStore,
@@ -34,7 +31,6 @@ import { Toggle } from './Toggle'
 import { Field } from './Field'
 import { ApiKeyInput } from './ApiKeyInput'
 import { Toast } from './Toast'
-import type { ToastState } from './hooks/useSettingDrawerBase'
 import styles from './SettingDrawer.module.css'
 
 const ns = useNameSpace(styles)
@@ -55,8 +51,9 @@ interface SettingsDrawerProps { open: boolean; onClose: () => void }
 export function SettingsDrawer({ open, onClose }: SettingsDrawerProps) {
   const base = useSettingDrawerBase(open, onClose)
   const derived = useSettingDrawerDerived(
-    base.localConfig, base.customModel, base.customBaseUrl,
-    base.setCustomModel, base.setCustomBaseUrl,
+    base.localConfig,
+    base.setCustomModel,
+    base.setCustomBaseUrl,
   )
   const { sessions, clearAllSessions, upsertSessions } = useAIStore()
   const {

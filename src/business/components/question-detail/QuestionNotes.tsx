@@ -11,7 +11,7 @@ import {
 } from '@/api/compat'
 import { formatReviewNoteTime } from '@/lib/feedbackNote'
 import { useNameSpace } from '@/utils'
-import type { QuestionNote, QuestionNoteImage } from '@/types'
+import type { QuestionNoteImage } from '@/types'
 import styles from './QuestionNotes.module.css'
 
 const ns = useNameSpace(styles)
@@ -256,15 +256,15 @@ export function QuestionNotes({
     setSpeechError(null)
     setImageImportError(null)
 
-    Promise.all([getQuestionNote(questionId), getQuestionNoteImages(questionId)])
-      .then(([note, images]: [QuestionNote | undefined, QuestionNoteImage[]]) => {
+    Promise.all([getQuestionNote(questionId), getQuestionNoteImages(questionId)] as const)
+      .then(([note, images]) => {
         if (cancelled) return
         const nextContent = note?.content ?? ''
         loadedContentRef.current = nextContent
         setContent(nextContent)
         setCreatedAt(note?.createdAt ?? null)
         setUpdatedAt(note?.updatedAt ?? null)
-        setNoteImages(Object.fromEntries(images.map((image) => [image.id, image])))
+        const imgMap: Record<string, any> = {}; for (const img of images) { imgMap[img.id] = img; }; setNoteImages(imgMap as any)
         onContentStateChange?.(nextContent.trim().length > 0)
         setLoading(false)
       })
@@ -310,11 +310,9 @@ export function QuestionNotes({
     saveTimerRef.current = window.setTimeout(async () => {
       const now = Date.now()
       try {
-        await putQuestionNote({
-          questionId,
+        await putQuestionNote(questionId, {
           content: nextContent,
           createdAt: createdAt ?? now,
-          updatedAt: now,
         })
         const keepImageIds = extractNoteImageIds(nextContent)
         await deleteUnusedQuestionNoteImages(questionId, keepImageIds)
